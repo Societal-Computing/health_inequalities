@@ -1,0 +1,19 @@
+{
+  "saving_path": "../combined_dataset",
+  "GADM_0": {
+    "shapefiles_path": {
+      "SEN": "../external_dataset/Gadm_data/SEN/gadm41_SEN_shp/gadm41_SEN_0.shp",
+      "GHA": "../external_dataset/Gadm_data/GHA/gadm41_GHA_shp/gadm41_GHA_0.shp",
+      "AGO" : "../external_dataset/Gadm_data/AGO/gadm41_AGO_shp/gadm41_AGO_0.shp"
+    },
+    "africa_dataset_path": "../external_dataset/Africa_Dataset/GADM0_Africa.csv"
+  },
+  "GADM_1":{
+    "shapefiles_path":{
+      "SEN": "../external_dataset/Gadm_data/SEN/gadm41_SEN_shp/gadm41_SEN_1.shp",
+      "GHA": "../external_dataset/GHA/gadm41_GHA_shp/gadm41_GHA_1.shp",
+      "AGO": "../external_dataset/AGO/gadm41_AGO_shp/gadm41_AGO_1.shp"
+    },
+    "africa_dataset_path": "../external_dataset/Africa_Dataset/GADM1_Africa.csv"
+    }
+}
