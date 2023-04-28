@@ -1,5 +1,5 @@
 {
-  "saving_path": "../combined_dataset",
+  "saving_path": "combined_dataset",
   "GADM_0": {
     "shapefiles_path": {
       "SEN": "external_dataset/Gadm_data/SEN/gadm41_SEN_shp/gadm41_SEN_0.shp",
@@ -27,5 +27,19 @@
       "DZA": "external_dataset/Gadm_data/DZA/gadm41_DZA_shp/gadm41_DZA_1.shp"
     },
     "africa_dataset_path": "external_dataset/Africa_Dataset/GADM1_Africa.csv"
+    },
+  "GADM_2":{
+    "shapefiles_path":{
+      "SEN": "external_dataset/Gadm_data/SEN/gadm41_SEN_shp/gadm41_SEN_2.shp",
+      "GHA": "external_dataset/Gadm_data/GHA/gadm41_GHA_shp/gadm41_GHA_2.shp",
+      "AGO": "external_dataset/Gadm_data/AGO/gadm41_AGO_shp/gadm41_AGO_2.shp",
+      "BEN": "external_dataset/Gadm_data/BEN/gadm41_BEN_shp/gadm41_BEN_2.shp",
+      "CMR": "external_dataset/Gadm_data/CMR/gadm41_CMR_shp/gadm41_CMR_2.shp",
+      "COG": "external_dataset/Gadm_data/COG/gadm41_COG_shp/gadm41_COG_2.shp",
+      "COM": "external_dataset/Gadm_data/COM/gadm41_COM_shp/gadm41_COM_2.shp",
+      "CPV": "external_dataset/Gadm_data/CPV/gadm41_CPV_shp/gadm41_CPV_2.shp",
+      "DZA": "external_dataset/Gadm_data/DZA/gadm41_DZA_shp/gadm41_DZA_2.shp"
+    },
+    "africa_dataset_path": "external_dataset/Africa_Dataset/GADM2_Africa.csv"
     }
 }

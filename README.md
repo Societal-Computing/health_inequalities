@@ -7,6 +7,6 @@ Git repository for the corresponding paper with the working title 'Social connec
 2.``` export PYTHONPATH="src" ```
 
 #### Dataset creation
-3 ``` python src/dataset_creator/lmic_dataset.py ```
+3.  ``` python src/dataset_creator/lmic_dataset.py ```
 When code is executed, the program combines the shapefiles with the African dataset on Gadm 0 and subsequently on Gadm 1 
-for all the selected countries. The result is saved as a csv file in ``` /combined_dataset ```
+for all the selected countries. The result is saved as a shapefiles files in ``` /combined_dataset ```
