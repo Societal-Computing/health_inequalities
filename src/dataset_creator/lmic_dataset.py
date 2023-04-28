@@ -1,17 +1,30 @@
 # Import libraries.
 import json
+import logging.handlers
 import os
 from pathlib import Path
-from typing import Dict , List
+from typing import Dict, List
 
 import geopandas as gpd
 import pandas as pd
 
-# TODO add logging
+# TODO move logging to file
+
+logger = logging.getLogger('health_inequalities')
+formatter = logging.Formatter(
+    fmt='%(filename)s | %(lineno)d | %(funcName)s | %(asctime)s | %(levelname)s: %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger.setLevel(logging.INFO)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setLevel(logging.INFO)
+consoleHandler.setFormatter(formatter)
+logger.addHandler(consoleHandler)
 
 class DataPreprocessing:
 
-    GADM_LEVELS = ["GADM_0", "GADM_1"]
+    GADM_LEVELS = ["GADM_0", "GADM_1", "GADM_2"]
 
     def __init__(self, config_json: Dict) -> None:
         self.config = config_json
@@ -27,8 +40,9 @@ class DataPreprocessing:
         if data_path.suffix == '.xlsx':
             data = pd.read_excel(data_path, encoding='ISO-8859-1')
         elif data_path.suffix == '.csv':
-            data = pd.read_csv(data_path, encoding='ISO-8859-1')
-
+            data = pd.read_csv(data_path, encoding='iso-8859-9')
+        else:
+            logger.error("Use a worksheet file of either csv or xlsx format")
         return data.head()
 
     @staticmethod
@@ -44,15 +58,18 @@ class DataPreprocessing:
         :return combined shapefiles:
         """
         all_shapefiles_ls = []
-        # logger.info("combing all shapefiles")
+        logger.info("combing shapefiles for single level")
         for single_shapefilepath in shapefilepaths:
-            all_shapefiles_ls.append(gpd.read_file(single_shapefilepath))
+            try:
+                all_shapefiles_ls.append(gpd.read_file(single_shapefilepath))
+            except Exception as e:
+                logger.info(e)
         combined_shapefile = pd.concat(all_shapefiles_ls)
-        # logger.info("all shapefiles combined")
+        logger.info(" all shapefiles combined for single level")
         return combined_shapefile
     def main(self):
         for level in self.GADM_LEVELS:
-            # logger.info(f"combining dataset for Gadm {level}")
+            logger.info(f"combining dataset for Gadm {level}")
             level_config = self.config.pop(level)
             level_shapefiles = level_config["shapefiles_path"]
             africa_dataset_path = level_config["africa_dataset_path"]
@@ -61,18 +78,25 @@ class DataPreprocessing:
             if level == "GADM_0":
                 combined_dataset = pd.merge(combined_shapefile, africa_dataset,on="GID_0", how="inner")
                 saving_path = self.saving_path_for_gadm_file(level)
-                combined_dataset.to_csv(saving_path)
-                # logger.info(f"dataset for Gadm {level} complete and saved in {saving_path}")
+                combined_dataset.to_file(saving_path, driver="GPKG")
+                logger.info(f"dataset for Gadm {level} complete and saved in {saving_path}")
             if level == "GADM_1":
+                # to drop duplicate columns
+                # https://stackoverflow.com/questions/14984119/python-pandas-remove-duplicate-columns
+                africa_dataset = africa_dataset.T.drop_duplicates().T
                 combined_dataset = pd.merge(combined_shapefile, africa_dataset, on="GID_1", how="inner")
                 saving_path = self.saving_path_for_gadm_file(level)
-                combined_dataset.to_csv(saving_path)
-                # logger.info(f"dataset for Gadm {level} complete and saved in {saving_path}")
+                combined_dataset.to_file(saving_path, driver="GPKG")
+                logger.info(f"dataset for Gadm {level} complete and saved in {saving_path}")
+            if level == "GADM_2":
+                combined_dataset = pd.merge(combined_shapefile, africa_dataset, on="GID_2", how="inner")
+                saving_path = self.saving_path_for_gadm_file(level)
+                combined_dataset.to_file(saving_path, driver="GPKG")
 
-    def saving_path_for_gadm_file(self,level):
+    def saving_path_for_gadm_file(self, level):
         if not os.path.exists(self.config['saving_path']):
             os.makedirs(self.config['saving_path'])
-        return f"{Path(self.config['saving_path']).joinpath(level)}.csv"
+        return Path(self.config['saving_path']).joinpath(f"{level}.gpkg").as_posix()
 
 
 if __name__ == '__main__':
