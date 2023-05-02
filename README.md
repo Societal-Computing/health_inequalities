@@ -2,11 +2,20 @@
 Git repository for the corresponding paper with the working title 'Social connectedness and health inequalities'
 
 #### Environment setup
-1.``` pip install -r requirements.txt ```
+``` pip install -r requirements.txt ```
 
-2.``` export PYTHONPATH="src" ```
+``` export PYTHONPATH="src" ```
 
 #### Dataset creation
-3.  ``` python src/dataset_creator/lmic_dataset.py ```
-When code is executed, the program combines the shapefiles with the African dataset on Gadm 0 and subsequently on Gadm 1 
-for all the selected countries. The result is saved as a shapefiles files in ``` /combined_dataset ```
+``` python src/dataset_creator/lmic_dataset.py ```
+When code is executed, the program does the following:
+
+For each GADM level: 
+1. combines all shapefiles into a single shapefile 
+2. combines single shapefile with Africa_dataset 
+3. calculate average and standard deviation for LMICs in meta sci 
+4. combines result from above with meta sci data 
+5. save result as a shapefile ``` /combined_dataset ```
+
+
+GADM levels used in this project are ``GADM0`` and ```GADM1```
