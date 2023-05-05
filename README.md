@@ -19,3 +19,18 @@ For each GADM level:
 
 
 GADM levels used in this project are ``GADM0`` and ```GADM1```
+
+Generated columns from SCI, kindly note that each indices calculated for each LMIC
+```
+Mean_SCI_with_Self: Mean of SCI with SCI within the country.
+Median_SCI_with_Self : Median of SCI with SCI within the country.
+Std_SCI_with_Self : Standard Deviation of SCI with SCI within the country.
+Mean_SCI_without_Self: Mean of SCI without SCI within the country.
+Median_SCI_without_Self : Median of SCI without SCI within the country.
+Std_SCI_without_Self : Standard Deviation of SCI without SCI within the country.
+Intraconnection_index = Self_SCI / Total_SCI , this is a measure of how connected each LMIC is connected
+with itself. Where Self_SCI is the SCI within a particular LMIC. Total_SCI is sum of all SCIs for a
+particular LMIC.
+LMIC_interconnection_index = Sum_LMIC_SCI / Total_SCI, this is a measure of how connected a specific LMIC
+is connected to other LMICs.
+```
