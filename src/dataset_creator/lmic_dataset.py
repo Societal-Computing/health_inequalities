@@ -28,7 +28,8 @@ logger.addHandler(consoleHandler)
 
 
 class DataPreprocessing:
-    GADM_LEVELS = ["GADM_0", "GADM_1"]
+
+    GADM_LEVELS = ["GADM_0","GADM_1"]
 
     def __init__(self, config_json: Dict) -> None:
         self.config = config_json
@@ -160,7 +161,9 @@ class DataPreprocessing:
                 combined_dataset.to_file(saving_path, driver="GPKG")
                 logger.info(f"dataset for Gadm {level} complete and saved in {saving_path}")
             if level == "GADM_1":
-                africa_dataset = africa_dataset.drop(columns=['fbkey', 'FB_key'])
+                africa_dataset = africa_dataset.drop(columns=['GID_0', 'fbkey','FB_key','NAME_0', 'NAME_1', 'VARNAME_1',
+                                                              'NL_NAME_1', 'TYPE_1', 'ENGTYPE_1', 'CC_1', 'HASC_1'])
+                combined_shapefile['GID_1'] = combined_shapefile.apply(lambda row: self.refactor_GHA_GID_1(row), axis=1)
                 gadm1_dhs_dataset = pd.merge(combined_shapefile, africa_dataset, on="GID_1", how="inner")
                 gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.GID_1.apply(lambda x:
                                                                            x.replace('.', '').replace('_1', ''))
@@ -175,6 +178,13 @@ class DataPreprocessing:
                 saving_path = self.saving_path_for_gadm_file(level)
                 combined_dataset.to_file(saving_path, driver="GPKG")
                 logger.info(f"dataset for Gadm {level} complete and saved in {saving_path}")
+
+    @staticmethod
+    def refactor_GHA_GID_1(row: pd.Series):
+        GID_1 = row['GID_1']
+        if row['COUNTRY'].strip() == "Ghana":
+            GID_1 = f"{GID_1[:3]}.{GID_1[4:-1]}1"
+        return GID_1
 
     def saving_path_for_gadm_file(self, level):
         if not os.path.exists(self.config['saving_path']):
