@@ -12,7 +12,7 @@ When code is executed, the program does the following:
 
 For each GADM level: 
 1. combines all shapefiles into a single shapefile 
-2. combines single shapefile with Africa_dataset 
+2. combines single shapefile with Africa_dataset for that level 
 3. calculate average and standard deviation for LMICs in meta sci 
 4. combines result from above with meta sci data 
 5. save result as a shapefile ``` /combined_dataset ```
@@ -40,3 +40,6 @@ particular LMIC.
 
 ```LMIC_interconnection_index``` = Sum_LMIC_SCI / Total_SCI, this is a measure of how connected a specific LMIC
 is connected to other LMICs.
+
+NOTE: Countries such as `DJIBOUTI`, `COMOROS` and `CAPE VERDE` only have SCI at `GADM_0` level so were not included in
+ ```GADM_1.gpkg```.
