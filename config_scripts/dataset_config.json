@@ -1,5 +1,6 @@
 {
   "saving_path": "combined_dataset",
+  "dhs_dataset_path": "combined_dataset/dhs_health.csv",
   "GADM_0": {
     "shapefiles_path": {
       "SEN": "../external_dataset/Gadm_data/gadm41_SEN_shp/gadm41_SEN_0.shp",
@@ -56,7 +57,7 @@
       "BFA": "../external_dataset/Gadm_data/gadm41_BFA_shp/gadm41_BFA_0.shp",
       "BDI": "../external_dataset/Gadm_data/gadm41_BDI_shp/gadm41_BDI_0.shp"
     },
-    "sci_data_path": "../external_dataset/Meta_sci_data/countries-countries-fb-social-connectedness-index-october-2021.tsv",
+    "sci_dataset_path": "../external_dataset/Meta_sci_data/countries-countries-fb-social-connectedness-index-october-2021.tsv",
     "africa_dataset_path": "../external_dataset/Africa_Dataset/GADM0_Africa.csv"
   },
   "GADM_1":{
@@ -115,7 +116,7 @@
       "BFA": "../external_dataset/Gadm_data/gadm41_BFA_shp/gadm41_BFA_1.shp",
       "BDI": "../external_dataset/Gadm_data/gadm41_BDI_shp/gadm41_BDI_1.shp"
     },
-    "sci_data_path": "../external_dataset/Meta_sci_data/gadm1_nuts3_counties-gadm1_nuts3_counties - FB Social Connectedness Index - October 2021.tsv",
+    "sci_dataset_path": "../external_dataset/Meta_sci_data/gadm1_nuts3_counties-gadm1_nuts3_counties - FB Social Connectedness Index - October 2021.tsv",
     "africa_dataset_path": "../external_dataset/Africa_Dataset/GADM1_Africa.csv"
     }
 }
