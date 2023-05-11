@@ -400,21 +400,37 @@ MRdata <- MRdata %>%
            set_value_labels(fp_know_sum = c(yes = 1, no = 0)) %>%
            set_variable_labels(fp_know_sum = "Sum of known methods")
 
+# Add mobile phone ownership variable
+if(is.null(IRdata$v169a)){
+  IRdata <- IRdata %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, v169a = hv243a),
+      by = join_by(v001 == hv001, v002 == hv002, v003 == hvidx))
+}
+
+if(is.null(MRdata$mv169a)){
+  MRdata <- MRdata %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, mv169a = hv243a),
+      by = join_by(mv001 == hv001, mv002 == hv002, mv003 == hvidx))
+}
+
+
 CKdata <- IRdata %>% 
   select(caseid,
          wt,
          v000,
          v001,
          v013,
-         v021,
          v023,
          v024,
          v025,
-         v026,
-         # v045,
          v130,
          v131,
-         # v270
+         v169a,
+         v190,
          fp_know_any,#			"Know any contraceptive method"
          fp_know_mod,#			"Know any modern method"
          fp_know_trad#		"Know any traditional method"
@@ -426,15 +442,13 @@ CKmdata <- MRdata %>%
          mv000,
          mv001,
          mv013,
-         mv021,
          mv023,
          mv024,
          mv025,
-         mv026,
-         # v045,
          mv130,
          mv131,
-         # v270
+         mv169a,
+         mv190,
          fp_know_any,#			"Know any contraceptive method"
          fp_know_mod,#			"Know any modern method"
          fp_know_trad#		"Know any traditional method"

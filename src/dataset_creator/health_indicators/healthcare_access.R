@@ -59,6 +59,14 @@ IRdata <- IRdata %>%
   set_value_labels(rh_prob_minone = c("Yes" = 1, "No"=0)) %>%
   set_variable_labels(rh_prob_minone = "At least one problem in accessing health care")
 
+# Add mobile phone ownership variable
+if(is.null(IRdata$v169a)){
+  IRdata <- IRdata %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, v169a = hv243a),
+      by = join_by(v001 == hv001, v002 == hv002, v003 == hvidx))
+}
 
 HAdata <- IRdata %>% 
   select(caseid,
@@ -66,7 +74,6 @@ HAdata <- IRdata %>%
          v000,
          v001,
          v013,
-         v021,
          v023,
          v024,
          v025,
@@ -74,6 +81,8 @@ HAdata <- IRdata %>%
          # v045,
          v130,
          v131,
+         v169a,
+         v190,
          # v270
          rh_prob_permit,#	"Problem health care access: permission to go"
          rh_prob_money,#		"Problem health care access: getting money"

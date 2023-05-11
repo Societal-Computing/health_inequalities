@@ -239,92 +239,101 @@ KRvac <- KRvac %>%
 # *** Pneumococcal  ***
 # //Pneumococcal 1, 2, 3 either source
 # Some surveys that do not have information on this vaccine.
-KRvac <- KRvac %>%
-  mutate(Pneumo1 = case_when(h54%in%c(1,2,3) ~ 1, h54%in%c(0,8) ~ 0  )) %>%
-  mutate(Pneumo2 = case_when(h55%in%c(1,2,3) ~ 1, h55%in%c(0,8) ~ 0  )) %>%
-  mutate(Pneumo3 = case_when(h56%in%c(1,2,3) ~ 1, h56%in%c(0,8) ~ 0  )) %>%
-  mutate(Pneumosum= Pneumo1+Pneumo2+Pneumo3)
-# This step is performed for multi-dose vaccines to take care of any gaps in the vaccination history. 
-# See DHS guide to statistics for further explanation
-KRvac <- KRvac %>%
-  mutate(ch_pneumo1_either = case_when(Pneumosum >=1 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo1_either = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo1_either = "Pneumococcal 1st dose vaccination according to either source") %>%
-  mutate(ch_pneumo2_either = case_when(Pneumosum >=2 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo2_either = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo2_either = "Pneumococcal 2nd dose vaccination according to either source") %>%
-  mutate(ch_pneumo3_either = case_when(Pneumosum >=3 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo3_either = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo3_either = "Pneumococcal 3rd dose vaccination according to either source") 
 
-# //Pneumococcal 1, 2, 3 mother's report
-KRvac <- KRvac %>%
-  mutate(ch_pneumo1_moth = case_when(Pneumosum >=1 & source==2~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo1_moth = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo1_moth = "Pneumococcal 1st dose vaccination according to mother") %>%
-  mutate(ch_pneumo2_moth = case_when(Pneumosum >=2 & source==2 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo2_moth = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo2_moth = "Pneumococcal 2nd dose vaccination according to mother") %>%
-  mutate(ch_pneumo3_moth = case_when(Pneumosum >=3 & source==2 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo3_moth = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo3_moth = "Pneumococcal 3rd dose vaccination according to mother") 
+if(!is_empty(KRvac$h54)){
 
-# //Pneumococcal 1, 2, 3 by card
-KRvac <- KRvac %>%
-  mutate(ch_pneumo1_card = case_when(Pneumosum >=1 & source==1~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo1_card = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo1_card = "Pneumococcal 1st dose vaccination according to card") %>%
-  mutate(ch_pneumo2_card = case_when(Pneumosum >=2 & source==1 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo2_card = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo2_card = "Pneumococcal 2nd dose vaccination according to card") %>%
-  mutate(ch_pneumo3_card = case_when(Pneumosum >=3 & source==1 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_pneumo3_card = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_pneumo3_card = "Pneumococcal 3rd dose vaccination according to card") 
+  KRvac <- KRvac %>%
+    mutate(Pneumo1 = case_when(h54%in%c(1,2,3) ~ 1, h54%in%c(0,8) ~ 0  )) %>%
+    mutate(Pneumo2 = case_when(h55%in%c(1,2,3) ~ 1, h55%in%c(0,8) ~ 0  )) %>%
+    mutate(Pneumo3 = case_when(h56%in%c(1,2,3) ~ 1, h56%in%c(0,8) ~ 0  )) %>%
+    mutate(Pneumosum= Pneumo1+Pneumo2+Pneumo3)
+  # This step is performed for multi-dose vaccines to take care of any gaps in the vaccination history. 
+  # See DHS guide to statistics for further explanation
+  KRvac <- KRvac %>%
+    mutate(ch_pneumo1_either = case_when(Pneumosum >=1 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo1_either = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo1_either = "Pneumococcal 1st dose vaccination according to either source") %>%
+    mutate(ch_pneumo2_either = case_when(Pneumosum >=2 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo2_either = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo2_either = "Pneumococcal 2nd dose vaccination according to either source") %>%
+    mutate(ch_pneumo3_either = case_when(Pneumosum >=3 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo3_either = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo3_either = "Pneumococcal 3rd dose vaccination according to either source") 
+  
+  # //Pneumococcal 1, 2, 3 mother's report
+  KRvac <- KRvac %>%
+    mutate(ch_pneumo1_moth = case_when(Pneumosum >=1 & source==2~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo1_moth = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo1_moth = "Pneumococcal 1st dose vaccination according to mother") %>%
+    mutate(ch_pneumo2_moth = case_when(Pneumosum >=2 & source==2 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo2_moth = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo2_moth = "Pneumococcal 2nd dose vaccination according to mother") %>%
+    mutate(ch_pneumo3_moth = case_when(Pneumosum >=3 & source==2 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo3_moth = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo3_moth = "Pneumococcal 3rd dose vaccination according to mother") 
+  
+  # //Pneumococcal 1, 2, 3 by card
+  KRvac <- KRvac %>%
+    mutate(ch_pneumo1_card = case_when(Pneumosum >=1 & source==1~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo1_card = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo1_card = "Pneumococcal 1st dose vaccination according to card") %>%
+    mutate(ch_pneumo2_card = case_when(Pneumosum >=2 & source==1 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo2_card = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo2_card = "Pneumococcal 2nd dose vaccination according to card") %>%
+    mutate(ch_pneumo3_card = case_when(Pneumosum >=3 & source==1 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_pneumo3_card = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_pneumo3_card = "Pneumococcal 3rd dose vaccination according to card") 
+}
 
 # *** Rotavirus  ****
 # //Rotavirus 1, 2, 3 either source
 # Some surveys that do not have information on this vaccine.
-KRvac <- KRvac %>%
-  mutate(rotav1 = case_when(h57%in%c(1,2,3) ~ 1, h57%in%c(0,8) ~ 0  )) %>%
-  mutate(rotav2 = case_when(h58%in%c(1,2,3) ~ 1, h58%in%c(0,8) ~ 0  )) %>%
-  mutate(rotav3 = case_when(h59%in%c(1,2,3) ~ 1, h59%in%c(0,8) ~ 0  )) %>%
-  mutate(rotavsum= rotav1+rotav2+rotav3)
-# This step is performed for multi-dose vaccines to take care of any gaps in the vaccination history. 
-# See DHS guide to statistics for further explanation
-KRvac <- KRvac %>%
-  mutate(ch_rotav1_either = case_when(rotavsum >=1 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav1_either = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav1_either = "Rotavirus 1st dose vaccination according to either source") %>%
-  mutate(ch_rotav2_either = case_when(rotavsum >=2 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav2_either = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav2_either = "Rotavirus 2nd dose vaccination according to either source") %>%
-  mutate(ch_rotav3_either = case_when(rotavsum >=3 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav3_either = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav3_either = "Rotavirus 3rd dose vaccination according to either source") 
 
-# //Rotavirus 1, 2, 3 mother's report
-KRvac <- KRvac %>%
-  mutate(ch_rotav1_moth = case_when(rotavsum >=1 & source==2~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav1_moth = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav1_moth = "Rotavirus 1st dose vaccination according to mother") %>%
-  mutate(ch_rotav2_moth = case_when(rotavsum >=2 & source==2 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav2_moth = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav2_moth = "Rotavirus 2nd dose vaccination according to mother") %>%
-  mutate(ch_rotav3_moth = case_when(rotavsum >=3 & source==2 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav3_moth = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav3_moth = "Rotavirus 3rd dose vaccination according to mother") 
+if(!is_empty(KRvac$h57)){
 
-# //Rotavirus 1, 2, 3 by card
-KRvac <- KRvac %>%
-  mutate(ch_rotav1_card = case_when(rotavsum >=1 & source==1~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav1_card = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav1_card = "Rotavirus 1st dose vaccination according to card") %>%
-  mutate(ch_rotav2_card = case_when(rotavsum >=2 & source==1 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav2_card = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav2_card = "Rotavirus 2nd dose vaccination according to card") %>%
-  mutate(ch_rotav3_card = case_when(rotavsum >=3 & source==1 ~ 1, TRUE ~ 0  )) %>%
-  set_value_labels(ch_rotav3_card = c("Yes" = 1, "No"=0)) %>%
-  set_variable_labels(ch_rotav3_card = "Rotavirus 3rd dose vaccination according to card") 
+  KRvac <- KRvac %>%
+    mutate(rotav1 = case_when(h57%in%c(1,2,3) ~ 1, h57%in%c(0,8) ~ 0  )) %>%
+    mutate(rotav2 = case_when(h58%in%c(1,2,3) ~ 1, h58%in%c(0,8) ~ 0  )) %>%
+    mutate(rotav3 = case_when(h59%in%c(1,2,3) ~ 1, h59%in%c(0,8) ~ 0  )) %>%
+    mutate(rotavsum= rotav1+rotav2+rotav3)
+  # This step is performed for multi-dose vaccines to take care of any gaps in the vaccination history. 
+  # See DHS guide to statistics for further explanation
+  KRvac <- KRvac %>%
+    mutate(ch_rotav1_either = case_when(rotavsum >=1 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav1_either = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav1_either = "Rotavirus 1st dose vaccination according to either source") %>%
+    mutate(ch_rotav2_either = case_when(rotavsum >=2 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav2_either = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav2_either = "Rotavirus 2nd dose vaccination according to either source") %>%
+    mutate(ch_rotav3_either = case_when(rotavsum >=3 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav3_either = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav3_either = "Rotavirus 3rd dose vaccination according to either source") 
+  
+  # //Rotavirus 1, 2, 3 mother's report
+  KRvac <- KRvac %>%
+    mutate(ch_rotav1_moth = case_when(rotavsum >=1 & source==2~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav1_moth = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav1_moth = "Rotavirus 1st dose vaccination according to mother") %>%
+    mutate(ch_rotav2_moth = case_when(rotavsum >=2 & source==2 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav2_moth = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav2_moth = "Rotavirus 2nd dose vaccination according to mother") %>%
+    mutate(ch_rotav3_moth = case_when(rotavsum >=3 & source==2 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav3_moth = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav3_moth = "Rotavirus 3rd dose vaccination according to mother") 
+  
+  # //Rotavirus 1, 2, 3 by card
+  KRvac <- KRvac %>%
+    mutate(ch_rotav1_card = case_when(rotavsum >=1 & source==1~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav1_card = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav1_card = "Rotavirus 1st dose vaccination according to card") %>%
+    mutate(ch_rotav2_card = case_when(rotavsum >=2 & source==1 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav2_card = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav2_card = "Rotavirus 2nd dose vaccination according to card") %>%
+    mutate(ch_rotav3_card = case_when(rotavsum >=3 & source==1 ~ 1, TRUE ~ 0  )) %>%
+    set_value_labels(ch_rotav3_card = c("Yes" = 1, "No"=0)) %>%
+    set_variable_labels(ch_rotav3_card = "Rotavirus 3rd dose vaccination according to card") 
+  
+}
 
 # *** Measles ***
 # //Measles either source
@@ -408,21 +417,30 @@ KRvac <- KRvac %>%
   set_value_labels(ch_card_seen = c("Yes" = 1, "No"=0)) %>%
   set_variable_labels(ch_card_seen = "Vaccination card seen")
 
+# Add mobile phone ownership variable
+if(is.null(KRvac$v169a)){
+  KRvac <- KRvac %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, v169a = hv243a),
+      by = join_by(v001 == hv001, v002 == hv002, v003 == hvidx))
+}
+
 CHdata <- KRvac %>% 
   select(caseid,
          wt,
          v000,
          v001,
+         b4,
+         b8,
          v013,
-         v021,
          v023,
          v024,
          v025,
-         v026,
-         # v045,
          v130,
          v131,
-         # v270,
+         v169a,
+         v190,
          ch_bcg_card,#			"BCG vaccination according to card"
          ch_bcg_moth,#		"BCG vaccination according to mother"
          ch_bcg_either,#		"BCG vaccination according to either source"
@@ -447,24 +465,24 @@ CHdata <- KRvac %>%
          ch_polio3_card,#		"Polio 3rd dose vaccination according to card"
          ch_polio3_moth,#		"Polio 3rd dose vaccination according to mother"
          ch_polio3_either,#	"Polio 3rd dose vaccination according to either source"
-         ch_pneumo1_card,#		"Pneumococcal 1st dose vaccination according to card"
-         ch_pneumo1_moth,#		"Pneumococcal 1st dose vaccination according to mother"
-         ch_pneumo1_either,#	"Pneumococcal 1st dose vaccination according to either source"
-         ch_pneumo2_card,#		"Pneumococcal 2nd dose vaccination according to card"
-         ch_pneumo2_moth,#		"Pneumococcal 2nd dose vaccination according to mother"
-         ch_pneumo2_either,#	"Pneumococcal 2nd dose vaccination according to either source"
-         ch_pneumo3_card,#		"Pneumococcal 3rd dose vaccination according to card"
-         ch_pneumo3_moth,#		"Pneumococcal 3rd dose vaccination according to mother"
-         ch_pneumo3_either,#	"Pneumococcal 3rd dose vaccination according to either source"
-         ch_rotav1_card,#		"Rotavirus 1st dose vaccination according to card"
-         ch_rotav1_moth,#		"Rotavirus 1st dose vaccination according to mother"
-         ch_rotav1_either,#	"Rotavirus 1st dose vaccination according to either source"
-         ch_rotav2_card,#		"Rotavirus 2nd dose vaccination according to card"
-         ch_rotav2_moth,#		"Rotavirus 2nd dose vaccination according to mother"
-         ch_rotav2_either,#	"Rotavirus 2nd dose vaccination according to either source"
-         ch_rotav3_card,#		"Rotavirus 3rd dose vaccination according to card"
-         ch_rotav3_moth,#		"Rotavirus 3rd dose vaccination according to mother"
-         ch_rotav3_either,#	"Rotavirus 3rd dose vaccination according to either source"
+         # ch_pneumo1_card,#		"Pneumococcal 1st dose vaccination according to card"
+         # ch_pneumo1_moth,#		"Pneumococcal 1st dose vaccination according to mother"
+         # ch_pneumo1_either,#	"Pneumococcal 1st dose vaccination according to either source"
+         # ch_pneumo2_card,#		"Pneumococcal 2nd dose vaccination according to card"
+         # ch_pneumo2_moth,#		"Pneumococcal 2nd dose vaccination according to mother"
+         # ch_pneumo2_either,#	"Pneumococcal 2nd dose vaccination according to either source"
+         # ch_pneumo3_card,#		"Pneumococcal 3rd dose vaccination according to card"
+         # ch_pneumo3_moth,#		"Pneumococcal 3rd dose vaccination according to mother"
+         # ch_pneumo3_either,#	"Pneumococcal 3rd dose vaccination according to either source"
+         # ch_rotav1_card,#		"Rotavirus 1st dose vaccination according to card"
+         # ch_rotav1_moth,#		"Rotavirus 1st dose vaccination according to mother"
+         # ch_rotav1_either,#	"Rotavirus 1st dose vaccination according to either source"
+         # ch_rotav2_card,#		"Rotavirus 2nd dose vaccination according to card"
+         # ch_rotav2_moth,#		"Rotavirus 2nd dose vaccination according to mother"
+         # ch_rotav2_either,#	"Rotavirus 2nd dose vaccination according to either source"
+         # ch_rotav3_card,#		"Rotavirus 3rd dose vaccination according to card"
+         # ch_rotav3_moth,#		"Rotavirus 3rd dose vaccination according to mother"
+         # ch_rotav3_either,#	"Rotavirus 3rd dose vaccination according to either source"
 
          ch_meas_card,#		  "Measles vaccination according to card"
          ch_meas_moth,#		  "Measles vaccination according to mother"

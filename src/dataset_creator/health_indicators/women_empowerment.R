@@ -372,6 +372,58 @@ MRdata <- MRdata %>%
   set_value_labels(we_justify_cond = c("Yes" = 1, "No"=0  )) %>%
   set_variable_labels(we_justify_cond = "Believe a women is justified in asking that her husband to use a condom if she knows that he has an STI")
 
+# //Number of decisions wife makes alone or jointly
+MRdata <- MRdata %>%
+  mutate(mv743a2 = ifelse(mv743a<3,1,0))  %>%
+  mutate(mv743b2 = ifelse(mv743b<3,1,0))  %>%
+  mutate(decisions= mv743a2+mv743b2) %>%
+  mutate(we_num_decide=
+           case_when(
+             mv502==1 & decisions==0  ~ 1, 
+             mv502==1 & decisions%in% c(1,2)  ~ 2, 
+             mv502==1 & decisions==3  ~ 3)) %>%
+  set_value_labels(we_num_decide = c("3"=3, "1-2" = 2, "0"=1  )) %>%
+  set_variable_labels(we_num_decide = "Number of decisions made either alone or jointly with husband among women currently in a union")
+
+#remove temporary vars
+MRdata =subset(MRdata, select=-c(decisions,mv743a2,mv743b2))
+
+# //Number of reasons wife beating is justified
+MRdata <- MRdata %>%
+  mutate(mv744a2 = ifelse(mv744a==1,1,0))  %>%
+  mutate(mv744b2 = ifelse(mv744b==1,1,0))  %>%
+  mutate(mv744c2 = ifelse(mv744c==1,1,0))  %>%
+  mutate(mv744d2 = ifelse(mv744d==1,1,0))  %>%
+  mutate(mv744e2 = ifelse(mv744e==1,1,0))  %>%
+  mutate(reasons= mv744a2+mv744b2+mv744c2+mv744d2+mv744e2) %>%
+  mutate(we_num_justifydv=
+           case_when(
+             mv502==1 & reasons==0  ~ 0, 
+             mv502==1 & reasons%in% c(1,2)  ~ 1, 
+             mv502==1 & reasons%in% c(3,4)  ~ 2,
+             mv502==1 & reasons==5  ~ 3)) %>%
+  set_value_labels(we_num_justifydv = c("5"=3, "3-4" = 2, "1-2"=1, "0"=0  )) %>%
+  set_variable_labels(we_num_justifydv = "Number of reasons for which wife beating is justified among women currently in a union")
+
+#remove temporary vars
+MRdata =subset(MRdata, select=-c(reasons,mv744a2,mv744b2,mv744c2,mv744d2,mv744e2))
+
+# Add mobile phone ownership variable
+if(is.null(IRdata$v169a)){
+  IRdata <- IRdata %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, v169a = hv243a),
+      by = join_by(v001 == hv001, v002 == hv002, v003 == hvidx))
+}
+
+if(is.null(MRdata$mv169a)){
+  MRdata <- MRdata %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, mv169a = hv243a),
+      by = join_by(mv001 == hv001, mv002 == hv002, mv003 == hvidx))
+}
 
 WEdata <- IRdata %>% 
   select(caseid,
@@ -379,7 +431,6 @@ WEdata <- IRdata %>%
          v000,
          v001,
          v013,
-         v021,
          v023,
          v024,
          v025,
@@ -387,6 +438,8 @@ WEdata <- IRdata %>%
          # v045,
          v130,
          v131,
+         v169a,
+         v190,
          # v270
          we_decide_health,#			  "Decides on own health care"
          we_decide_hhpurch,#			  "Decides on large household purchases"
@@ -421,7 +474,6 @@ WEmdata <- MRdata %>%
          mv000,
          mv001,
          mv013,
-         mv021,
          mv023,
          mv024,
          mv025,
@@ -429,6 +481,8 @@ WEmdata <- MRdata %>%
          # v045,
          mv130,
          mv131,
+         mv169a,
+         mv190,
          # v270
          we_decide_health,#			  "Decides on own health care"
          we_decide_hhpurch,#			  "Decides on large household purchases"
@@ -449,5 +503,8 @@ WEmdata <- MRdata %>%
          we_dvjustify_onereas,#		"Agree that husband is justified in hitting or beating his wife for at least one of the reasons"
          
          we_justify_refusesex,#		"Believe a woman is justified to refuse sex with her husband if she knows he's having sex with other women"
-         we_justify_cond#				  "Believe a women is justified in asking that her husband to use a condom if she knows that he has an STI"
+         we_justify_cond,#				  "Believe a women is justified in asking that her husband to use a condom if she knows that he has an STI"
+         
+         we_num_decide,#				    "Number of decisions made either alone or jointly with husband among women currently in a union"
+         we_num_justifydv		  #	"Number of reasons for which wife beating is justified among women currently in a union"
   )

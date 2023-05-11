@@ -62,13 +62,24 @@ KRdata <- KRdata %>%
   set_variable_labels(nt_bf_start_1day = "Started breastfeeding within one day of birth - last-born in the past 2 years")
 
 # //Given prelacteal feed
-KRdata <- KRdata %>%
-  mutate(nt_bf_prelac =
-           case_when(
-             (midx==1 & age<24) & m4 %in% c(93,95) & m55==1  ~ 1 ,
-             (midx==1 & age<24)  ~ 0)) %>%
-  set_value_labels(nt_bf_prelac = c("Yes" = 1, "No"=0  )) %>%
-  set_variable_labels(nt_bf_prelac = "Received a prelacteal feed - last-born in the past 2 years ever breast fed")
+if(!is_empty(KRdata$m55)){
+  KRdata <- KRdata %>%
+    mutate(nt_bf_prelac =
+             case_when(
+               (midx==1 & age<24) & m4 %in% c(93,95) & m55==1  ~ 1 ,
+               (midx==1 & age<24)  ~ 0)) %>%
+    set_value_labels(nt_bf_prelac = c("Yes" = 1, "No"=0  )) %>%
+    set_variable_labels(nt_bf_prelac = "Received a prelacteal feed - last-born in the past 2 years ever breast fed")
+} else{
+  KRdata <- KRdata %>%
+    mutate(nt_bf_prelac =
+             case_when(
+               (midx==1 & age<24) & m4 %in% c(93,95) & (rowSums(select(.,contains("m55")), na.rm = T)>=1)  ~ 1 ,
+               (midx==1 & age<24)  ~ 0)) %>%
+    set_value_labels(nt_bf_prelac = c("Yes" = 1, "No"=0  )) %>%
+    set_variable_labels(nt_bf_prelac = "Received a prelacteal feed - last-born in the past 2 years ever breast fed")
+}
+
 
 # //Using bottle with nipple 
 KRdata <- KRdata %>%
@@ -79,6 +90,15 @@ KRdata <- KRdata %>%
   set_value_labels(nt_bottle = c("Yes" = 1, "No"=0  )) %>%
   set_variable_labels(nt_bottle = "Drank from a bottle with a nipple yesterday - under 2 years")
 
+# Add mobile phone ownership variable
+if(is.null(KRdata$v169a)){
+  KRdata <- KRdata %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, v169a = hv243a),
+      by = join_by(v001 == hv001, v002 == hv002, v003 == hvidx))
+}
+
 
 BFdata <- KRdata %>% 
   select(caseid,
@@ -86,15 +106,13 @@ BFdata <- KRdata %>%
          v000,
          v001,
          v013,
-         v021,
          v023,
          v024,
          v025,
-         v026,
-         # v045,
          v130,
          v131,
-         # v270
+         v169a,
+         v190,
          nt_bf_ever,#			  "Ever breastfed - last-born in the past 2 years"
          nt_bf_start_1hr,#		"Started breastfeeding within one hour of birth - last-born in the past 2 years"
          nt_bf_start_1day,#	"Started breastfeeding within one day of birth - last-born in the past 2 years"

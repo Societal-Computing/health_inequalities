@@ -717,6 +717,14 @@ IRdata <- IRdata %>%
   set_value_labels(dv_help_other = c("Yes" = 1, "No"=0)) %>%
   set_variable_labels(dv_help_other = "Sought help from other")
 
+# Add mobile phone ownership variable
+if(is.null(IRdata$v169a)){
+  IRdata <- IRdata %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, v169a = hv243a),
+      by = join_by(v001 == hv001, v002 == hv002, v003 == hvidx))
+}
 
 DVdata <- IRdata %>% 
   select(caseid,
@@ -724,15 +732,13 @@ DVdata <- IRdata %>%
          v000,
          v001,
          v013,
-         v021,
          v023,
          v024,
          v025,
-         v026,
-         # v045,
          v130,
          v131,
-         # v270
+         v169a,
+         v190,
          	dv_phy,#				  "Experienced physical violence since age 15"
          	dv_phy_12m,#		  "Experienced physical violence in the past 12 months"
          	dv_phy_preg,#		  "Experienced physical violence during pregnancy"

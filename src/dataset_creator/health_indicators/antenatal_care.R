@@ -288,6 +288,14 @@ if (m1a_included==1) {
     mutate( rh_anc_neotet =NA)
 }
 
+# Add mobile phone ownership variable
+if(is.null(IRdata$v169a)){
+  IRdata <- IRdata %>% 
+    left_join(
+      PRdata %>% 
+        select(hv001, hv002, hvidx, v169a = hv243a),
+      by = join_by(v001 == hv001, v002 == hv002, v003 == hvidx))
+}
 
 ACdata <- IRdata %>% 
   select(caseid,
@@ -295,15 +303,14 @@ ACdata <- IRdata %>%
          v000,
          v001,
          v013,
-         v021,
          v023,
          v024,
          v025,
          v026,
-         # v045,
          v130,
          v131,
-         # v270
+         v169a,
+         v190,
          rh_anc_pv,#       "Person providing assistance during ANC"
          rh_anc_pvskill,#  "Skilled assistance during ANC"
          rh_anc_numvs,#		"Number of ANC visits"
