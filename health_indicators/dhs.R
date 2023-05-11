@@ -14,8 +14,8 @@ options(dplyr.summarise.inform = FALSE)
 registerDoParallel(detectCores()-2)
 
 # Functions and directories -----------------------------------------------
-codewd <- "/Users/tillkoebe/Documents/GitHub/health_inequalities/src/dataset_creator/health_indicators"
-datawd <- "/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/DHS_data/"
+codewd <- "health_inequalities/health_indicators"
+datawd <- "../external_dataset/DHS_data/"
 
 setwd(datawd)
 
