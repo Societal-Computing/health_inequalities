@@ -125,8 +125,8 @@ class DataPreprocessing:
         meta_data = sci_dataset[sci_dataset.user_loc.isin(lmic_gadm_level_names)].copy()
         avg_median_std_with_self = meta_data.groupby('user_loc').agg(Mean_SCI_with_Self=('scaled_sci', np.mean),
                                                                      Median_SCI_with_Self=('scaled_sci', np.median),
-                                                                     Std_SCI_with_Self=(
-                                                                         'scaled_sci', np.std)).reset_index()
+                                                                     Std_SCI_with_Self=('scaled_sci', np.std),
+                                                                     SCI=('scaled_sci', np.sum)).reset_index()
 
         meta_data = meta_data[~(meta_data.user_loc == meta_data.fr_loc)]
         avg_median_std_without_self = meta_data.groupby('user_loc').agg(Mean_SCI_without_Self=('scaled_sci', np.mean),
