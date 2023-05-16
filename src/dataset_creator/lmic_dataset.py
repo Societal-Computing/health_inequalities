@@ -47,8 +47,6 @@ class DataPreprocessing:
             data = pd.read_csv(data_path, encoding='ISO-8859-1')
         else:
             logger.error("Use a worksheet file of either csv or xlsx format")
-        # remove duplicate columns
-        # data = data.loc[:, ~data.columns.duplicated()]
         return data
 
     @staticmethod
@@ -181,10 +179,11 @@ class DataPreprocessing:
                                            right_on='user_loc', how='inner')
                 dhs_sci_dataset = dhs_sci_dataset.drop(columns=["user_loc"])
                 saving_path_variables, saving_path_geometries = self.saving_path_for_gadm_file(level)
-                geomtries_cols = ['GID_0', 'geometry']
-                dhs_sci_geometries = dhs_sci_dataset[geomtries_cols]
+                geometries_cols = ['GID_0', 'geometry']
 
-                dhs_variables = dhs_sci_dataset[dhs_sci_dataset.columns.difference(['geometry'])]
+                dhs_sci_geometries = dhs_sci_dataset[geometries_cols]
+                dhs_variables = dhs_sci_dataset.loc[:, ~dhs_sci_dataset.columns.isin(['geometry'])]
+
                 dhs_variables = dhs_variables.T.drop_duplicates().T
 
                 dhs_variables.to_csv(saving_path_variables)
@@ -198,7 +197,7 @@ class DataPreprocessing:
             if level == "GADM_1":
                 africa_dataset = africa_dataset.drop(
                     columns=['GID_0', 'fbkey', 'FB_key', 'NAME_0', 'NAME_1', 'VARNAME_1',
-                             'NL_NAME_1', 'TYPE_1', 'ENGTYPE_1', 'CC_1'])
+                             'NL_NAME_1', 'TYPE_1', 'ENGTYPE_1', 'CC_1', 'HASC_1'])
                 combined_shapefile['GID_1'] = combined_shapefile.apply(lambda row: self.refactor_GHA_GID_1(row), axis=1)
                 gadm1_dhs_dataset = pd.merge(combined_shapefile, africa_dataset, on="GID_1", how="inner")
                 gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.GID_1.apply(lambda x:
@@ -212,9 +211,9 @@ class DataPreprocessing:
                 dhs_sci_dataset = pd.merge(gadm1_dhs_dataset, generated_sci_indices, left_on='GID_1',
                                            right_on='user_loc', how='inner')
                 saving_path_variables, saving_path_geometries = self.saving_path_for_gadm_file(level)
-                geomtries_cols = ['GID_1', 'geometry']
-                dhs_sci_geometries = dhs_sci_dataset[geomtries_cols]
-                dhs_variables = dhs_sci_dataset[dhs_sci_dataset.columns.difference(['geometry'])]
+                geometries_cols = ['GID_1', 'geometry']
+                dhs_sci_geometries = dhs_sci_dataset[geometries_cols]
+                dhs_variables = dhs_sci_dataset.loc[:, ~dhs_sci_dataset.columns.isin(['geometry'])]
                 dhs_variables = dhs_variables.T.drop_duplicates().T
                 dhs_sci_geometries = gpd.GeoDataFrame(dhs_sci_geometries, crs="EPSG:4326")
 
