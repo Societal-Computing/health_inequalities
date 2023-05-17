@@ -28,7 +28,7 @@ logger.addHandler(consoleHandler)
 
 
 class DataPreprocessing:
-    GADM_LEVELS = ["GADM_0", "GADM_1"]
+    GADM_LEVELS = ["GADM_1"]
 
     def __init__(self, config_json: Dict) -> None:
         self.config = config_json
@@ -75,7 +75,15 @@ class DataPreprocessing:
     @staticmethod
     def calculate_country_constrained_features(sci_dataset: pd.DataFrame):
         sci_dataset = sci_dataset.copy()
+        sci_dataset['fr_GID_0'] = sci_dataset['fr_loc'].str.strip().str[:2]
+        sci_dataset['user_GID_0'] = sci_dataset['user_loc'].str.strip().str[:2]
+        # Get only countrywide information
+        sci_dataset = sci_dataset[sci_dataset['user_GID_0'] == sci_dataset['fr_GID_0']]
+        sci_dataset = sci_dataset.groupby(['user_loc']).agg(Local_sum_SCI=('scaled_sci', np.sum),
+                                                          Local_mean_SCI=('scaled_sci', np.mean),
+                                                          Local_std_SCI=('scaled_sci', np.std)).reset_index()
 
+        return sci_dataset
 
     @staticmethod
     def calculate_intra_inter_connection_indices(sci_dataset: pd.DataFrame,
@@ -213,21 +221,25 @@ class DataPreprocessing:
                 avg_median_std_sci = self.calculate_avg_median_std_SCI(sci_dataset, lmic_gid1_names)
                 generated_sci_indices = pd.merge(avg_median_std_sci, intra_inter_connection_indices, on='user_loc',
                                                  how='inner')
-                dhs_sci_dataset = pd.merge(gadm1_dhs_dataset, generated_sci_indices, left_on='GID_1',
-                                           right_on='user_loc', how='inner')
-                saving_path_variables, saving_path_geometries = self.saving_path_for_gadm_file(level)
-                geometries_cols = ['GID_1', 'geometry']
-                dhs_sci_geometries = dhs_sci_dataset[geometries_cols]
-                dhs_variables = dhs_sci_dataset.loc[:, ~dhs_sci_dataset.columns.isin(['geometry'])]
-                dhs_variables = dhs_variables.T.drop_duplicates().T
-                dhs_sci_geometries = gpd.GeoDataFrame(dhs_sci_geometries, crs="EPSG:4326")
-
-                dhs_variables.to_csv(saving_path_variables)
-                dhs_sci_geometries.to_file(saving_path_geometries)
-
-                logger.info(
-                    f"dataset for Gadm {level} completed, geometries are saved in {saving_path_geometries}"
-                    f" and variables are saved in {saving_path_variables}")
+                local_sci_indices = self.calculate_country_constrained_features(sci_dataset)
+                print(local_sci_indices.head())
+                print(local_sci_indices.info())
+                # dhs_sci_dataset = pd.merge(gadm1_dhs_dataset, generated_sci_indices, left_on='GID_1',
+                #                            right_on='user_loc', how='inner')
+                #
+                # saving_path_variables, saving_path_geometries = self.saving_path_for_gadm_file(level)
+                # geometries_cols = ['GID_1', 'geometry']
+                # dhs_sci_geometries = dhs_sci_dataset[geometries_cols]
+                # dhs_variables = dhs_sci_dataset.loc[:, ~dhs_sci_dataset.columns.isin(['geometry'])]
+                # dhs_variables = dhs_variables.T.drop_duplicates().T
+                # dhs_sci_geometries = gpd.GeoDataFrame(dhs_sci_geometries, crs="EPSG:4326")
+                #
+                # dhs_variables.to_csv(saving_path_variables)
+                # dhs_sci_geometries.to_file(saving_path_geometries)
+                #
+                # logger.info(
+                #     f"dataset for Gadm {level} completed, geometries are saved in {saving_path_geometries}"
+                #     f" and variables are saved in {saving_path_variables}")
 
     @staticmethod
     def refactor_GHA_GID_1(row: pd.Series):
