@@ -73,6 +73,11 @@ class DataPreprocessing:
         return combined_shapefile
 
     @staticmethod
+    def calculate_country_constrained_features(sci_dataset: pd.DataFrame):
+        sci_dataset = sci_dataset.copy()
+
+
+    @staticmethod
     def calculate_intra_inter_connection_indices(sci_dataset: pd.DataFrame,
                                                  lmic_gadm_level_names: List) -> pd.DataFrame:
         """
