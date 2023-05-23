@@ -5,17 +5,12 @@ library(naniar)         # replace_with_na function
 library(labelled)       # Set variable labels
 library(matrixStats)    # Set variable labels
 library(sf)             # read shape files
-library(foreach)    # For parallelizing loops
-library(doParallel) # For parallelizing loops
-library(parallel) # For parallelizing loops
 
 options(dplyr.summarise.inform = FALSE)
 
-registerDoParallel(detectCores()-2)
-
 # Functions and directories -----------------------------------------------
-codewd <- "health_inequalities/health_indicators"
-datawd <- "../external_dataset/DHS_data/"
+codewd <- "/Users/tillkoebe/Documents/GitHub/health_inequalities/health_indicators"
+datawd <- "/Users/tillkoebe/Documents/Data/DHS Africa/"
 
 setwd(datawd)
 
@@ -43,19 +38,17 @@ country_ls <- substr(dataset_ls, 1, 2) %>%
   unique()
 
 ### Allocate clusters to ADM1 regions
-AFRdata <- st_read(dsn = "/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1.gpkg") %>% 
+AFRdata <- st_read(dsn = "/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_geometries.gpkg") %>% 
   st_make_valid() %>% 
   st_transform(4326) %>% 
+  left_join(read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_variables.csv") %>% 
+              select(GID_1, HASC_1), by = 'GID_1') %>% 
   select(GID_1, HASC_1, geom)
 
 
 # Start loop across countries ---------------------------------------------
 
 for(i in country_ls){
-  
-  # dhs_health <- foreach(i = country_ls,
-  #                        .combine=bind_rows) %dopar% 
-  #   {
   
   tryCatch({
     ### Check if DHS or MIS
@@ -395,8 +388,8 @@ for(i in country_ls){
       
       # Add control variables ---------------------------------------------------
       
-      control_vars <- c('v001', # cluster
-                        'sex', # gender
+      control_vars <- c('sex', # gender,
+                        'v001', # cluster
                         'v013', # age group
                         'v025',
                         'v045b', # interview language
@@ -421,6 +414,10 @@ for(i in country_ls){
           IRdata <- IRdata %>% 
             mutate(v045b = slang) 
         }
+        if(!is.null(IRdata$slinterview)){
+          IRdata <- IRdata %>% 
+            mutate(v045b = slinterview)
+        }
       }
       
       if(is.null(MRdata$mv045b)){
@@ -440,6 +437,10 @@ for(i in country_ls){
           MRdata <- MRdata %>% 
             mutate(mv045b = smlang) 
         }
+        if(!is.null(MRdata$smlinterview)){
+          MRdata <- MRdata %>% 
+            mutate(mv045b = smlinterview) 
+        }
       }
       
       Control <- IRdata %>% 
@@ -447,24 +448,47 @@ for(i in country_ls){
         select(control_vars) %>% 
         bind_rows(
           MRdata %>% 
+            select(paste0("m", control_vars[!control_vars == 'sex'])) %>% 
             rename_with(., ~ sub(".", "", .x)) %>% 
             mutate(sex = 'male') %>% 
             select(control_vars)
         ) %>% 
-        mutate(across(control_vars[-1], as_factor),
-               across(where(is.factor), as.character)) %>% 
+        set_value_labels(v190 = c("poorest" = 1, # Some surveys have messed up labelling
+                                  "poorer" = 2,
+                                  "middle" = 3, 
+                                  "richer" = 4,
+                                  "richest" = 5)) %>%
+        mutate(across(control_vars[!control_vars == 'v001'], as_factor),
+               across(where(is.factor), as.character)
+               ) %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
-        select(-v001, -geometry)
+        mutate(maj_lang = 'lang_minor', # determine majority language
+               maj_lang = replace(maj_lang, 
+                                  is.na(v045b), 'lang_NA'),
+               maj_lang = replace(maj_lang, 
+                                  v045b == names(which.max(table(v045b))), 'lang_major')) %>% 
+        mutate(maj_rel = 'rel_minor', # determine majority religion
+               maj_rel = replace(maj_rel, 
+                                  is.na(v130), 'rel_NA'),
+               maj_rel = replace(maj_rel, 
+                                 v130 == names(which.max(table(v130))), 'rel_major')) %>% 
+        select(-v001, -v045b, -geometry)
       
-      for(j in control_vars[-1]){
+      control_vars <- c(control_vars[!control_vars == 'v045b'],
+                        "maj_lang",
+                        "maj_rel")
+      
+      for(j in control_vars[!control_vars == 'v001']){
         temp <- Control %>% 
           group_by(.data[[j]], GID_1) %>%
           summarise(n = n()) %>%
           group_by(GID_1) %>%
           mutate(freq = n / sum(n, na.rm = T), n = sum(n, na.rm = T)) %>% 
           select(-n) %>% 
-          pivot_wider(names_from = {{j}}, values_from = freq, values_fill = list(freq = 0)) %>%
+          pivot_wider(names_from = {{j}}, 
+                      values_from = freq, 
+                      values_fill = list(freq = 0)) %>%
           right_join(temp, by = 'GID_1')
       }
       
@@ -472,16 +496,11 @@ for(i in country_ls){
     
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")}) 
   
-  # if(exists('temp')){
-  #   temp
-  # }else{
-  #   data.frame()
-  # }
-  
   if(exists('temp')){
     
     dhs_health <- dhs_health %>% 
-      bind_rows(temp)
+      bind_rows(temp %>% 
+                replace(is.na(.), 0))
     
     rm(temp)
     
@@ -489,23 +508,15 @@ for(i in country_ls){
   
 }
 
-
-# stopImplicitCluster()
-
-# for(i in country_ls){
-# 
-# }
-
 # Clean up final dataset --------------------------------------------------
 
 dhs_health <- 
   dhs_health %>% 
   filter(GID_1 != 'NA') %>% 
-  replace(is.na(.), 0) %>% 
-  # mutate(other_religion = other.x + other.y) %>% 
-  # select(-other.x, -other.y) %>% 
   rename(other_religion = other.x, other_language = other.y,
-    has_mobile_phone_yes = yes, has_mobile_phone_no = no)
+         NA_religion = NA.x, NA_language = NA.y,
+    has_mobile_phone_yes = yes, has_mobile_phone_no = no) %>% 
+  select(where(~sum(!is.na(.x)) > 0), -.data[['NA']])
 
 write.csv(dhs_health,
           file='/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/dhs_health.csv', 
