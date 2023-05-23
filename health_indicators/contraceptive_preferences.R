@@ -260,6 +260,8 @@ CPmdata <- MRdata %>%
          mv131,
          mv169a,
          mv190,
+         # fp_decyes_user,#			"Who makes the decision to use family planning among users"
+         # fp_decno_nonuser,#		"Who makes decision not to use family planning among non-users"
          fp_message_radio,#		"Exposure to family planning message by radio"
          fp_message_tv,#			  "Exposure to family planning message by TV"
          fp_message_paper,#		"Exposure to family planning message by newspaper/magazine"
