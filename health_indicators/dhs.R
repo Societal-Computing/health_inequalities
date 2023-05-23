@@ -43,8 +43,27 @@ AFRdata <- st_read(dsn = "/Users/tillkoebe/Documents/GitHub/health_inequalities/
   st_transform(4326) %>% 
   left_join(read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_variables.csv") %>% 
               select(GID_1, HASC_1), by = 'GID_1') %>% 
-  select(GID_1, HASC_1, geom)
-
+  select(GID_1, HASC_1, geom) %>% 
+  mutate(
+    HASC_1 = if_else(
+      grepl('GIN', GID_1, fixed = TRUE),'GN', HASC_1), # fix ISO of Guinea
+    HASC_1 = if_else(
+      grepl('UGA', GID_1, fixed = TRUE),'UG', HASC_1), # fix ISO of Uganda
+    HASC_1 = if_else(
+      grepl('NER', GID_1, fixed = TRUE),'NI', HASC_1), # fix ISO of Niger
+    HASC_1 = if_else(
+      grepl('GHA', GID_1, fixed = TRUE),'GH', HASC_1), # fix ISO of Ghana
+    HASC_1 = if_else(
+      grepl('NAM', GID_1, fixed = TRUE),'NM', HASC_1), # fix ISO of Namibia
+    HASC_1 = if_else(
+      grepl('BDI', GID_1, fixed = TRUE),'BU', HASC_1), # fix ISO of Burundi
+    HASC_1 = if_else(
+      grepl('LBR', GID_1, fixed = TRUE),'LB', HASC_1), # fix ISO of Liberia
+    HASC_1 = if_else(
+      grepl('MDG', GID_1, fixed = TRUE),'MD', HASC_1), # fix ISO of Madagascar
+    HASC_1 = if_else(
+      grepl('TCD', GID_1, fixed = TRUE),'CD', HASC_1), # fix ISO of Chad
+  )
 
 # Start loop across countries ---------------------------------------------
 
@@ -136,6 +155,8 @@ for(i in country_ls){
         mutate(wt = v005/1000000,
                hhid = paste(v001, v002, sep='.'))
       
+      ### Check availability of sparse modules
+      no_DV <- is_empty(IRdata$d105a)
       
       # Indicators --------------------------------------------------------------
       '
@@ -164,7 +185,11 @@ for(i in country_ls){
       
       ### Domestic violence
       
-      source(paste0(codewd,"/domestic_violence.R"), local = T)
+      if(no_DV){
+        DVdata <- data.frame(GID_1 = unique(GEOdata$GID_1))
+      } else{
+        source(paste0(codewd,"/domestic_violence.R"), local = T)
+      }
       
       ### Breastfeeding
       
@@ -306,22 +331,24 @@ for(i in country_ls){
           values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
         )
       
-      DVdata <- DVdata %>% 
-        mutate(across(v013:v190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'female') %>% 
-        left_join(GEOdata, 
-                  by = join_by(v001 == DHSCLUST)) %>% 
-        select(GID_1, 
-               sex, 
-               v169a, # owns mobile phone
-               dv_sex_12m, dv_phy_12m) %>% 
-        pivot_wider(
-          names_from = c(sex, v169a),
-          names_sep = "_",
-          values_from = c(dv_sex_12m, dv_phy_12m),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
+      if(!no_DV){
+        DVdata <- DVdata %>% 
+          mutate(across(v013:v190, as_factor),
+                 across(where(is.factor), as.character),
+                 sex = 'female') %>% 
+          left_join(GEOdata, 
+                    by = join_by(v001 == DHSCLUST)) %>% 
+          select(GID_1, 
+                 sex, 
+                 v169a, # owns mobile phone
+                 dv_sex_12m, dv_phy_12m) %>% 
+          pivot_wider(
+            names_from = c(sex, v169a),
+            names_sep = "_",
+            values_from = c(dv_sex_12m, dv_phy_12m),
+            values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
+          )
+      }
       
       HAdata <- HAdata %>% 
         mutate(across(v013:v190, as_factor),
@@ -498,9 +525,12 @@ for(i in country_ls){
   
   if(exists('temp')){
     
+    names(temp) <- tolower(names(temp))
+    
     dhs_health <- dhs_health %>% 
-      bind_rows(temp %>% 
-                replace(is.na(.), 0))
+      bind_rows(temp  %>% 
+                  mutate(across(everything(), ~ifelse(is.nan(.), NA, .)))
+                )
     
     rm(temp)
     
@@ -512,11 +542,14 @@ for(i in country_ls){
 
 dhs_health <- 
   dhs_health %>% 
+  rename(GID_1 = gid_1) %>% 
   filter(GID_1 != 'NA') %>% 
-  rename(other_religion = other.x, other_language = other.y,
-         NA_religion = NA.x, NA_language = NA.y,
+  rename(other_religion = other,
+         na_religion = .data[['na']],
     has_mobile_phone_yes = yes, has_mobile_phone_no = no) %>% 
-  select(where(~sum(!is.na(.x)) > 0), -.data[['NA']])
+  select(where(~sum(!is.na(.x)) > 0),
+         -.data[['9']], -.data[['99']])
+  
 
 write.csv(dhs_health,
           file='/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/dhs_health.csv', 
