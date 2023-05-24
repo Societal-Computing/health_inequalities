@@ -29,10 +29,7 @@ logger.addHandler(consoleHandler)
 
 class DataPreprocessing:
     GADM_LEVEL = "GADM_1"
-<<<<<<< HEAD
     CRS = "4326"
-=======
->>>>>>> main
 
     def __init__(self, config_json: Dict) -> None:
         self.config = config_json
@@ -249,11 +246,7 @@ class DataPreprocessing:
         return sci_health_data
 
     def combine_dhs_health_ineq(self, dhs_sci_dataset, dhs_dataset_path):
-<<<<<<< HEAD
         # combination with health inequalities data
-=======
-        # combination with health inequalites data
->>>>>>> main
         dhs_sci_dataset = dhs_sci_dataset[
             ['GID_1', 'COUNTRY', 'Mean_SCI_with_Self', 'Median_SCI_with_Self', 'Std_SCI_with_Self', 'SCI',
              'Mean_SCI_without_Self', 'Median_SCI_without_Self', 'Std_SCI_without_Self',
@@ -261,7 +254,6 @@ class DataPreprocessing:
         dhs_sci_health = self.dhsData_sciData_with_healthInequalities(dhs_dataset_path, dhs_sci_dataset)
         # remove duplicates in data
         dhs_sci_health = dhs_sci_health.T.drop_duplicates().T
-<<<<<<< HEAD
         dhs_sci_health = gpd.GeoDataFrame(dhs_sci_health, crs=self.CRS)
         # dhs_sci_health.to_file(saving_path, driver="GPKG")
         return dhs_sci_health
@@ -276,19 +268,10 @@ class DataPreprocessing:
             return row['GID_1']
 
     def main(self):
-=======
-        dhs_sci_health = gpd.GeoDataFrame(dhs_sci_health, crs="EPSG:4326")
-        # dhs_sci_health.to_file(saving_path, driver="GPKG")
-        return dhs_sci_health
-
-    def main(self):
-        dhs_dataset_path = self.config['dhs_dataset_path']
->>>>>>> main
         logger.info(f"combining dataset for Gadm {self.GADM_LEVEL}")
         level_config = self.config.pop(self.GADM_LEVEL)
         level_shapefiles = level_config["shapefiles_path"]
         africa_dataset_path = level_config["africa_dataset_path"]
-<<<<<<< HEAD
         health_indicators_path = level_config['health_indicators_dataset_path']
         sci_dataset = pd.read_csv(level_config["sci_dataset_path"], delimiter="\t")
         combined_shapefile = self.combine_shapefiles_single_gadm_level(list(level_shapefiles.values()))
@@ -296,16 +279,10 @@ class DataPreprocessing:
 
         # save combined shapefiles
         combined_shapefile.to_file("external_dataset/all_shapefiles.gpkg", driver="GPKG")
-
-=======
-        sci_dataset = pd.read_csv(level_config["sci_dataset_path"], delimiter="\t")
-        combined_shapefile = self.combine_shapefiles_single_gadm_level(list(level_shapefiles.values()))
->>>>>>> main
         africa_dataset = self.worksheet_reader(africa_dataset_path)
 
         africa_dataset = africa_dataset.drop(
             columns=['GID_0', 'fbkey', 'FB_key', 'NAME_0', 'NAME_1', 'VARNAME_1',
-<<<<<<< HEAD
                      'NL_NAME_1', 'TYPE_1', 'ENGTYPE_1', 'CC_1'])
 
         combined_shapefile.rename(columns={"HASC_1": "HASC_x"}, inplace=True)
@@ -323,21 +300,12 @@ class DataPreprocessing:
         # resolving issues with HASC_1 naming
         gadm1_dhs_dataset['HASC_1'] = gadm1_dhs_dataset.apply(lambda row: self.correct_HASC_1(row), axis=1)
         gadm1_dhs_dataset.drop(columns=['HASC_x'], inplace=True)
-
-=======
-                     'NL_NAME_1', 'TYPE_1', 'ENGTYPE_1', 'CC_1', 'HASC_1'])
-        combined_shapefile['GID_1'] = combined_shapefile.apply(lambda row: self.refactor_GHA_GID_1(row), axis=1)
-        gadm1_dhs_dataset = pd.merge(combined_shapefile, africa_dataset, on="GID_1", how="inner")
-        gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.GID_1.apply(lambda x:
-                                                                   x.replace('.', '').replace('_1', ''))
->>>>>>> main
         lmic_gid1_names = gadm1_dhs_dataset.GID_1.unique().tolist()
 
         # merge all sci related features for only LMICs
         intra_inter_connection_indices = self.calculate_intra_inter_connection_indices(sci_dataset, lmic_gid1_names)
         distance_between_sci = self.compute_distance_indices(gadm1_dhs_dataset[['GID_1', 'geometry']], sci_dataset)
         intra_inter_connection_dist_indices = intra_inter_connection_indices.merge(distance_between_sci,
-<<<<<<< HEAD
                                                                                    on='user_loc', how='inner')
 
         avg_median_std_sci = self.calculate_avg_median_std_SCI(sci_dataset, lmic_gid1_names)
@@ -349,16 +317,6 @@ class DataPreprocessing:
         sci_features = generated_sci_indices.merge(local_sci_indices, on="user_loc", how="inner")
 
         dhs_sci_dataset = pd.merge(gadm1_dhs_dataset, sci_features, left_on='GID_1', right_on='user_loc', how='inner')
-
-=======
-                                                                                   on='user_loc', how='left')
-        avg_median_std_sci = self.calculate_avg_median_std_SCI(sci_dataset, lmic_gid1_names)
-        generated_sci_indices = pd.merge(avg_median_std_sci, intra_inter_connection_dist_indices, on='user_loc',
-                                         how='inner')
-        local_sci_indices = self.calculate_country_constrained_features(sci_dataset)
-        sci_features = generated_sci_indices.merge(local_sci_indices, on="user_loc", how="left")
-        dhs_sci_dataset = pd.merge(gadm1_dhs_dataset, sci_features, left_on='GID_1', right_on='user_loc', how='inner')
->>>>>>> main
         # end of sci features addition
 
         saving_path_variables, saving_path_geometries = self.saving_path_for_gadm_file(self.GADM_LEVEL)
@@ -366,7 +324,6 @@ class DataPreprocessing:
         dhs_sci_geometries = dhs_sci_dataset[geometries_cols]
         dhs_variables = dhs_sci_dataset.loc[:, ~dhs_sci_dataset.columns.isin(['geometry'])]
         dhs_variables = dhs_variables.T.drop_duplicates().T
-<<<<<<< HEAD
         dhs_variables.drop(columns=['GID_1'])
         dhs_variables = dhs_variables.drop(columns=['GID_1'])
         dhs_variables.rename(columns={'GID_1_1': 'GID_1'}, inplace=True)
@@ -377,17 +334,12 @@ class DataPreprocessing:
         dhs_variables = dhs_variables.merge(health_indicators, on='GID_1', how='inner')
 
         # saving data
-=======
-        dhs_sci_geometries = gpd.GeoDataFrame(dhs_sci_geometries, crs="EPSG:4326")
-
->>>>>>> main
         dhs_variables.to_csv(saving_path_variables)
         dhs_sci_geometries.to_file(saving_path_geometries)
 
         logger.info(
             f"dataset for Gadm {self.GADM_LEVEL} completed, geometries are saved in {saving_path_geometries}"
             f" and variables are saved in {saving_path_variables}")
-<<<<<<< HEAD
 
     @staticmethod
     def correct_HASC_1(row: pd.Series):
@@ -395,8 +347,6 @@ class DataPreprocessing:
             return row['HASC_x']
         else:
             return row['HASC_1']
-=======
->>>>>>> main
 
     @staticmethod
     def refactor_GHA_GID_1(row: pd.Series):
