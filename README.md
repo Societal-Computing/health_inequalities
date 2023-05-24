@@ -1,30 +1,32 @@
 # Social connectedness and health inequalities
+
 Git repository for the corresponding paper with the working title 'Social connectedness and health inequalities'
 
 #### Environment setup
+
 ``` pip install -r requirements.txt ```
 
 ``` export PYTHONPATH="src" ```
 
 #### Dataset creation
+
 ``` python src/dataset_creator/lmic_dataset.py ```
 When code is executed, the program does the following:
 
-For each GADM level: 
-1. combines all shapefiles into a single shapefile 
 
-2. combines single shapefile with Africa_dataset for that level 
+1. combines all shapefiles into a single shapefile
 
-3. calculate average and standard deviation for LMICs in meta sci 
+2. combines single shapefile with Africa_dataset
 
-4. combines result from above with meta sci data 
+3. calculates features with meta SCI and combines with result from `3`
 
-6. save result as a shapefile ``` /combined_dataset ```
+4. combines result from `3` with generated health indicators
 
+6. save geometries shapefile and variables data in ``` /combined_dataset ```
 
-GADM levels used in this project are ``GADM0`` and ```GADM1```
+For finer granularity, we use data on at ```GADM1``` level.
 
-Generated columns from SCI, kindly note that each indices calculated for each LMIC
+### Extracted features from SCI
 
 ```Mean_SCI_with_Self```: Mean of SCI with SCI within the country.
 
@@ -38,26 +40,51 @@ Generated columns from SCI, kindly note that each indices calculated for each LM
 
 ```Std_SCI_without_Self``` : Standard Deviation of SCI without SCI within the country.
 
+#### LMIC Level features
+
 ```Intraconnection_index``` = Self_SCI / Total_SCI , this is a measure of how connected each LMIC is connected
 with itself. Where Self_SCI is the SCI within a particular LMIC. Total_SCI is sum of all SCIs for a
 particular LMIC.
 
-```LMIC_interconnection_index``` = Sum_LMIC_SCI / Total_SCI, this is a measure of how connected a specific LMIC
+```LMIC_interconnection_index``` : Sum_LMIC_SCI / Total_SCI, this is a measure of how connected a specific LMIC
 is connected to other LMICs.
 
-NOTE: Countries such as `DJIBOUTI`, `COMOROS` and `CAPE VERDE` only have SCI at `GADM_0` level so were not included in
- ```GADM_1.gpkg```.
- 
+
+#### Country Level SCI features
+
+```Local_sum_SCI``` : Sum of all SCI indices from a region `A` to all other regions in the same country.
+
+```Local_mean_SCI``` : Mean of all SCI indices from region `A` to all other regions in the same country.
+
+```Local_median_SCI``` : Median SCI density from region `A` to all other regions in the same country
+
+#### Global Level SCI features
+
+```Total_dist_to_SCI``` : Sum of all distances from region `A` to all other regions in the world where `A` has a
+connection with.
+
+```Mean_dist_to_SCI``` : Mean of all distances from region `A` to all other regions in the world where `A` has a
+connection with.
+
+```Median_dist_to_SCI``` : Median of all distances from region `A` to all other regions in the world where `A` has a
+connection with.
+
+```Std_dist_to_SCI``` : Standard deviation of all distances from region `A` to all other regions in the world where `A`
+has a connection with.
+
 #### Description of health indicators and controls from DHS
 
-The health indicators are currently disaggregated by gender (female/male) and/or mobile phone ownership status (yes/no). For example, the health indicator ```ch_allvac_either``` (Child under 2 has received all basic vaccinations according to either mother or vaccination card) is displayed as ```ch_allvac_either_yes```, thus covering all children whose mothers have a mobile phone. For some indicators, disaggregating by gender may not be meaningful (e.g. breastfeeding). Type of disaggregation will be subject to change in the future.
+The health indicators are currently disaggregated by gender (female/male) and/or mobile phone ownership status (yes/no).
+For example, the health indicator ```ch_allvac_either``` (Child under 2 has received all basic vaccinations according to
+either mother or vaccination card) is displayed as ```ch_allvac_either_yes```, thus covering all children whose mothers
+have a mobile phone. For some indicators, disaggregating by gender may not be meaningful (e.g. breastfeeding). Type of
+disaggregation will be subject to change in the future.
 
 Important health indicators are:
 
 1. Child Health
-1.1. ```ch_allvac_either```: All basic vaccinations according to either source (mother or vaccination card)
-1.2. ```ch_novac_either```: No vaccinations according to either source (mother or vaccination card)
-
+   1. ```ch_allvac_either```: All basic vaccinations according to either source (mother or vaccination card)
+   2. ```ch_novac_either```: No vaccinations according to either source (mother or vaccination card)
 2. Health care access
 2.1. ```rh_prob_permit```: Problem health care access: permission to go
 2.2. ```rh_prob_money```: Problem health care access: getting money
@@ -118,7 +145,6 @@ Important health indicators are:
 7.2. ```fp_decno_nonuser```: Who makes decision not to use family planning among non-users
 8.3. ```fp_message_noneof3```: Not exposed to (family planning messages via) TV, radio, or paper media sources
 
-
 Important controls are:
 c.1. ```sex```: sex of respondent
 c.2. ```v013```: 5-years age group of respondent
@@ -128,5 +154,5 @@ c.5. ```v130```: religion
 c.6. ```v169a```: mobile phone ownership
 c.7. ```v190```: wealth index in quintiles
 
-
-
+NOTE: Final dataset contains `DHS`, `Health_indicators` and `Generated_SCI_features` is
+saved ```GADM_1_geometries.gpkg``` and ```GADM_1_variables.gpkg```.

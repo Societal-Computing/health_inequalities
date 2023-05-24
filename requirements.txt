@@ -83,6 +83,7 @@ ptyprocess==0.7.0
 pure-eval==0.2.2
 pycparser==2.21
 Pygments==2.15.1
+pyreadstat
 pyparsing==3.0.9
 pyproj==3.5.0
 pyrsistent==0.19.3
