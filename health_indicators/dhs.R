@@ -552,5 +552,5 @@ dhs_health <-
   
 
 write.csv(dhs_health,
-          file='/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/dhs_health.csv', 
+          file='/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health.csv', 
           row.names=FALSE)
