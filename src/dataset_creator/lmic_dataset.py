@@ -229,6 +229,15 @@ class DataPreprocessing:
         return all_sum_sci
 
     @staticmethod
+    def compute_sci_share_in_fr(gadm1_data: pd.DataFrame, sci_dataset: pd.DataFrame)-> pd.DataFrame:
+        fr_countries = gadm1_data[gadm1_data.GID_1.isin(sci_dataset.fr_loc.unique().tolist())][
+            ['GID_1', 'All_devices_age_13_plus_all_genders']]
+        sci_dataset = sci_dataset.copy()
+        sci_dataset = fr_countries.merge(sci_dataset,left_on='GID_1', right_on='fr_loc', how='left')
+        sci_dataset['new_sci'] = sci_dataset['All_devices_age_13_plus_all_genders'] * sci_dataset['scaled_sci']
+
+        return sci_dataset['user_loc','new_sci']
+    @staticmethod
     def calculate_avg_median_std_SCI(sci_dataset: pd.DataFrame, lmic_gadm_level_names: List) -> pd.DataFrame:
         """
         Calculates avg and standard deviation with and without scaled_index from same country.
@@ -335,6 +344,9 @@ class DataPreprocessing:
             Total_SCI_in_Africa=('scaled_sci', 'sum')).reset_index()
 
         # merge all sci related features for only LMICs
+        new_sci = self.compute_sci_share_in_fr(gadm1_dhs_dataset, sci_dataset)
+        print(new_sci.head())
+        new_sci.to_csv('combined_dataset/new_sci.csv')
         distance_between_sci = self.compute_distance_indices(gadm1_dhs_dataset[['GID_1', 'geometry']], sci_dataset)
         avg_median_std_sci = self.calculate_avg_median_std_SCI(sci_dataset, lmic_gid1_names)
         regional_ratios = self.calculate_regional_ratios(sci_dataset, agg_sci_from_region_to_africa,
