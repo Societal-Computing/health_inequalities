@@ -74,22 +74,43 @@ class DataPreprocessing:
         return gpd.GeoDataFrame(combined_shapefile, crs=cls.CRS)
 
     @staticmethod
-    def calculate_country_constrained_features(sci_dataset: pd.DataFrame):
+    def calculate_regional_ratios(sci_dataset: pd.DataFrame, agg_sci_from_region_to_africa: pd.DataFrame,
+                                  agg_sci_from_region_to_world: pd.DataFrame) -> pd.DataFrame:
         """
-        Calculate country constrained mean, median and std of sci
-        :param sci_dataset:
+        Calculate ratio of self_loop to al sci in country,
+        ratio of self_sci to all regions in Africa,
+        ratio of self_sci to all regions,
+        ratio of sum of sci in country to all regions
+        :param sci_dataset , agg_sci_from_region_to_africa, agg_sci_from_region_to_world
         :return:
         """
         sci_dataset = sci_dataset.copy()
+        # get self_loop sci
+        self_sci_dataset = sci_dataset[sci_dataset['user_loc'] == sci_dataset['fr_loc']][['user_loc', 'scaled_sci']]
+        self_sci_dataset = self_sci_dataset.merge(agg_sci_from_region_to_africa, on='user_loc',
+                                                  how='inner').reset_index()
+        self_sci_dataset = self_sci_dataset.merge(agg_sci_from_region_to_world, on='user_loc',
+                                                  how='inner').reset_index()
+        self_sci_dataset['ratio_selfloop_to_africa'] = self_sci_dataset.apply(
+            lambda x: x['scaled_sci'] / x['Total_SCI_in_Africa'], axis=1)
+        self_sci_dataset['ratio_selfloop_to_all_sci'] = self_sci_dataset.apply(
+            lambda x: x['scaled_sci'] / x['Total_SCI_in_World'], axis=1)
+
         sci_dataset['fr_GID_0'] = sci_dataset['fr_loc'].str.strip().str[:2]
         sci_dataset['user_GID_0'] = sci_dataset['user_loc'].str.strip().str[:2]
         # Get only countrywide information
-        sci_dataset = sci_dataset[sci_dataset['user_GID_0'] == sci_dataset['fr_GID_0']]
-        sci_dataset = sci_dataset.groupby(['user_loc']).agg(Local_sum_SCI=('scaled_sci', np.sum),
-                                                            Local_mean_SCI=('scaled_sci', np.mean),
-                                                            Local_std_SCI=('scaled_sci', np.std)).reset_index()
+        country_sci_dataset = sci_dataset[sci_dataset['user_GID_0'] == sci_dataset['fr_GID_0']]
+        country_sci_dataset = country_sci_dataset.groupby('user_loc').agg(
+            Total_SCI_in_Country=('scaled_sci', 'sum')).reset_index()
+        self_sci_dataset = self_sci_dataset[
+            ['user_loc', 'scaled_sci', 'ratio_selfloop_to_africa', 'ratio_selfloop_to_all_sci']]
+        self_sci_dataset = self_sci_dataset.merge(country_sci_dataset, on='user_loc', how='inner')
 
-        return sci_dataset
+        self_sci_dataset['ratio_selfloop_to_country'] = self_sci_dataset.apply(
+            lambda x: x['scaled_sci'] / x['Total_SCI_in_Country'], axis=1)
+
+        return self_sci_dataset[
+            ['user_loc', 'ratio_selfloop_to_country', 'ratio_selfloop_to_africa', 'ratio_selfloop_to_all_sci']]
 
     @classmethod
     def compute_distance_indices(cls, geometries: gpd.GeoDataFrame, sci_dataset: pd.DataFrame):
@@ -208,6 +229,15 @@ class DataPreprocessing:
         return all_sum_sci
 
     @staticmethod
+    def compute_sci_share_in_fr(gadm1_data: pd.DataFrame, sci_dataset: pd.DataFrame)-> pd.DataFrame:
+        fr_countries = gadm1_data[gadm1_data.GID_1.isin(sci_dataset.fr_loc.unique().tolist())][
+            ['GID_1', 'All_devices_age_13_plus_all_genders']]
+        sci_dataset = sci_dataset.copy()
+        sci_dataset = fr_countries.merge(sci_dataset,left_on='GID_1', right_on='fr_loc', how='left')
+        sci_dataset['new_sci'] = sci_dataset['All_devices_age_13_plus_all_genders'] * sci_dataset['scaled_sci']
+
+        return sci_dataset['user_loc','new_sci']
+    @staticmethod
     def calculate_avg_median_std_SCI(sci_dataset: pd.DataFrame, lmic_gadm_level_names: List) -> pd.DataFrame:
         """
         Calculates avg and standard deviation with and without scaled_index from same country.
@@ -302,20 +332,28 @@ class DataPreprocessing:
         gadm1_dhs_dataset.drop(columns=['HASC_x'], inplace=True)
         lmic_gid1_names = gadm1_dhs_dataset.GID_1.unique().tolist()
 
+        # aggregated sci from African countries to all other countries
+        agg_sci_from_region_to_all_sci = sci_dataset[sci_dataset.user_loc.isin(lmic_gid1_names)].copy()
+        agg_sci_from_region_to_all_sci = agg_sci_from_region_to_all_sci.groupby('user_loc').agg(
+            Total_SCI_in_World=('scaled_sci', 'sum')).reset_index()
+
+        # aggregated sci from Africa to Africa
+        agg_sci_from_region_to_africa = sci_dataset[
+            sci_dataset.user_loc.isin(lmic_gid1_names) & sci_dataset.fr_loc.isin(lmic_gid1_names)].copy()
+        agg_sci_from_region_to_africa = agg_sci_from_region_to_africa.groupby('user_loc').agg(
+            Total_SCI_in_Africa=('scaled_sci', 'sum')).reset_index()
+
         # merge all sci related features for only LMICs
-        intra_inter_connection_indices = self.calculate_intra_inter_connection_indices(sci_dataset, lmic_gid1_names)
+        new_sci = self.compute_sci_share_in_fr(gadm1_dhs_dataset, sci_dataset)
+        print(new_sci.head())
+        new_sci.to_csv('combined_dataset/new_sci.csv')
         distance_between_sci = self.compute_distance_indices(gadm1_dhs_dataset[['GID_1', 'geometry']], sci_dataset)
-        intra_inter_connection_dist_indices = intra_inter_connection_indices.merge(distance_between_sci,
-                                                                                   on='user_loc', how='inner')
-
         avg_median_std_sci = self.calculate_avg_median_std_SCI(sci_dataset, lmic_gid1_names)
+        regional_ratios = self.calculate_regional_ratios(sci_dataset, agg_sci_from_region_to_africa,
+                                                         agg_sci_from_region_to_all_sci)
 
-        generated_sci_indices = pd.merge(avg_median_std_sci, intra_inter_connection_dist_indices, on='user_loc',
-                                         how='inner')
-
-        local_sci_indices = self.calculate_country_constrained_features(sci_dataset)
-        sci_features = generated_sci_indices.merge(local_sci_indices, on="user_loc", how="inner")
-
+        distance_nd_avg_sc = avg_median_std_sci.merge(distance_between_sci, on='user_loc', how='inner').reset_index()
+        sci_features = distance_nd_avg_sc.merge(regional_ratios, on="user_loc", how="inner")
         dhs_sci_dataset = pd.merge(gadm1_dhs_dataset, sci_features, left_on='GID_1', right_on='user_loc', how='inner')
         # end of sci features addition
 
