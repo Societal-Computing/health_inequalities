@@ -40,16 +40,6 @@ For finer granularity, we use data on at ```GADM1``` level.
 
 ```Std_SCI_without_Self``` : Standard Deviation of SCI without SCI within the country.
 
-#### LMIC Level features
-
-```Intraconnection_index``` = Self_SCI / Total_SCI , this is a measure of how connected each LMIC is connected
-with itself. Where Self_SCI is the SCI within a particular LMIC. Total_SCI is sum of all SCIs for a
-particular LMIC.
-
-```LMIC_interconnection_index``` : Sum_LMIC_SCI / Total_SCI, this is a measure of how connected a specific LMIC
-is connected to other LMICs.
-
-
 #### Country Level SCI features
 
 ```Local_sum_SCI``` : Sum of all SCI indices from a region `A` to all other regions in the same country.
@@ -71,6 +61,13 @@ connection with.
 
 ```Std_dist_to_SCI``` : Standard deviation of all distances from region `A` to all other regions in the world where `A`
 has a connection with.
+
+```Median_SCI_to_fr_loc``` : Mean SCI of facebook users from source location connected to all other regions.
+
+```Mean_friendship``` : Mean of number of friends from source location to all destinations.
+```Median_friendship``` : Median of number of friends from source location to all destinations.
+```Std_friendship``` : Std of number of friends from source location to all destinations.
+```Total_friendship``` : Total number of friends from source location to all destinations.
 
 #### Description of health indicators and controls from DHS
 

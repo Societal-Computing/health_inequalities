@@ -1,8 +1,9 @@
 # Import libraries.
 import json
-import logging.handlers
 import os
+import sys
 import warnings
+from os.path import join
 from pathlib import Path
 from typing import Dict, List
 
@@ -10,21 +11,12 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
+sys.path.append(join(os.getcwd(), 'src'))
+
+from logger import logger
+from dataset_creator import Dataset_Creator_World_Covariates
+
 warnings.filterwarnings("ignore")
-
-# TODO move logging to file
-
-logger = logging.getLogger('health_inequalities')
-formatter = logging.Formatter(
-    fmt='%(filename)s | %(lineno)d | %(funcName)s | %(asctime)s | %(levelname)s: %(message)s',
-    datefmt='%H:%M:%S'
-)
-logger.setLevel(logging.INFO)
-
-consoleHandler = logging.StreamHandler()
-consoleHandler.setLevel(logging.INFO)
-consoleHandler.setFormatter(formatter)
-logger.addHandler(consoleHandler)
 
 
 class DataPreprocessing:
@@ -162,81 +154,20 @@ class DataPreprocessing:
 
         return sci_dataset
 
+
     @staticmethod
-    def compute_distance_indices(geometries: gpd.GeoDataFrame, sci_dataset: pd.DataFrame):
-        """
-        Computes the mean, median and std of distances between all regions
-        :param geometries:
-        :param sci_dataset:
-        :return:
-        """
-        # compute centroids
+    def compute_sci_share_in_destination_region(gadm1_dataset: pd.DataFrame, sci_dataset: pd.DataFrame) -> pd.DataFrame:
+        gadm1_dataset = gadm1_dataset[['GID_1', 'All_devices_age_13_plus_all_genders']].copy()
         sci_dataset = sci_dataset.copy()
-        geometries = geometries.copy()
-        geometries = geometries.to_crs("4326")
-        geometries['Centroids'] = geometries.geometry.centroid
-        sci_dataset = sci_dataset.merge(geometries, left_on='user_loc', right_on='GID_1', how='inner')
-        sci_dataset = sci_dataset.rename(columns={"Centroids": "user_loc_centroid"})
-        sci_dataset.drop(columns=["GID_1", "geometry"], inplace=True)
-
-        sci_dataset = sci_dataset.merge(geometries, left_on='fr_loc', right_on='GID_1', how='inner')
-        sci_dataset = sci_dataset.rename(columns={"Centroids": "fr_loc_centroid"})
-        sci_dataset.drop(columns=["GID_1"], inplace=True)
-        sci_dataset = gpd.GeoDataFrame(sci_dataset)
-        sci_dataset = sci_dataset.to_crs('4326')
-        sci_dataset['distance'] = sci_dataset['user_loc_centroid'].distance(sci_dataset['fr_loc_centroid'])
-        sci_dataset['distance'] = sci_dataset['distance'].abs()
-        sci_dataset.drop(columns=["fr_loc_centroid", "user_loc_centroid", "geometry"], inplace=True)
-        avg_median_std_distance = sci_dataset.groupby('user_loc').agg(Mean_dist_to_SCI=('distance', np.mean),
-                                                                      Median_dist_to_SCI=('distance', np.median),
-                                                                      Std_dist_to_SCI=('distance', np.std),
-                                                                      Total_dist=('distance', np.sum)
-                                                                      ).reset_index()
-        return avg_median_std_distance
-
-    @staticmethod
-    def calculate_intra_inter_connection_indices(sci_dataset: pd.DataFrame,
-                                                 lmic_gadm_level_names: List) -> pd.DataFrame:
-        """
-        :param sci_dataset:
-        :param lmic_gadm_level_names:
-        calculates the following indices:
-            Intraconnection_index = Self_SCI / Total_SCI , this is a measure of how connected each LMIC is connected
-            with itself. Where Self_SCI is the SCI within a particular LMIC. Total_SCI is sum of all SCIs for a
-            particular LMIC.
-            LMIC_interconnection_index = Sum_LMIC_SCI / Total_SCI, this is a measure of how connected a specific LMIC
-            is connected to other LMICs.
-
-        :return:
-        """
-        # filters all sci from LMICs
-        meta_data = sci_dataset[sci_dataset.user_loc.isin(lmic_gadm_level_names)].copy()
-        sum_sci = meta_data.groupby('user_loc').agg(Total_SCI=('scaled_sci', 'sum')).reset_index()
-
-        # filters all sci to fellow LMICs except sci within country
-        inter_lmic_data = meta_data[
-            ~(meta_data.user_loc == meta_data.fr_loc) & meta_data.fr_loc.isin(lmic_gadm_level_names)]
-        lmic_sci = inter_lmic_data.groupby('user_loc').agg(Sum_LMIC_SCI=('scaled_sci', 'sum')).reset_index()
-
-        # filters all sci within each LMIC
-        intra_lmic_data = meta_data[(meta_data.user_loc == meta_data.fr_loc)]
-        self_sci = intra_lmic_data.groupby('user_loc').agg(Self_SCI=('scaled_sci', 'sum')).reset_index()
-        all_sum_sci = sum_sci.merge(self_sci, on='user_loc', how='inner').merge(lmic_sci, on='user_loc', how='inner')
-        all_sum_sci['Intraconnection_index'] = all_sum_sci.apply(lambda x: x['Self_SCI'] / x['Total_SCI'], axis=1)
-        all_sum_sci['LMIC_interconnection_index'] = all_sum_sci.apply(lambda x: x['Sum_LMIC_SCI'] / x['Total_SCI'],
-                                                                      axis=1)
-        all_sum_sci = all_sum_sci[['user_loc', 'Intraconnection_index', 'LMIC_interconnection_index']]
-        return all_sum_sci
-
-    @staticmethod
-    def compute_sci_share_in_fr(gadm1_data: pd.DataFrame, sci_dataset: pd.DataFrame)-> pd.DataFrame:
-        fr_countries = gadm1_data[gadm1_data.GID_1.isin(sci_dataset.fr_loc.unique().tolist())][
-            ['GID_1', 'All_devices_age_13_plus_all_genders']]
-        sci_dataset = sci_dataset.copy()
-        sci_dataset = fr_countries.merge(sci_dataset,left_on='GID_1', right_on='fr_loc', how='left')
+        sci_dataset = gadm1_dataset.merge(sci_dataset, left_on='GID_1', right_on='fr_loc', how='inner')
         sci_dataset['new_sci'] = sci_dataset['All_devices_age_13_plus_all_genders'] * sci_dataset['scaled_sci']
+        agg_destination_sci_data = sci_dataset.groupby('user_loc').agg(Mean_friendship=('scaled_sci', np.mean),
+                                                                       Median_friendship=('scaled_sci', np.median),
+                                                                       Std_friendship=('scaled_sci', np.std),
+                                                                       Total_friendship=(
+                                                                           'scaled_sci', np.sum)).reset_index()
+        return agg_destination_sci_data
 
-        return sci_dataset['user_loc','new_sci']
     @staticmethod
     def calculate_avg_median_std_SCI(sci_dataset: pd.DataFrame, lmic_gadm_level_names: List) -> pd.DataFrame:
         """
@@ -299,6 +230,7 @@ class DataPreprocessing:
 
     def main(self):
         logger.info(f"combining dataset for Gadm {self.GADM_LEVEL}")
+        wpop_source_base_url = self.config['wpop_source_base_url']
         level_config = self.config.pop(self.GADM_LEVEL)
         level_shapefiles = level_config["shapefiles_path"]
         africa_dataset_path = level_config["africa_dataset_path"]
@@ -332,6 +264,8 @@ class DataPreprocessing:
         gadm1_dhs_dataset.drop(columns=['HASC_x'], inplace=True)
         lmic_gid1_names = gadm1_dhs_dataset.GID_1.unique().tolist()
 
+        agg_data_on_sci_of_fr_loc = self.compute_sci_share_in_destination_region(gadm1_dhs_dataset, sci_dataset)
+
         # aggregated sci from African countries to all other countries
         agg_sci_from_region_to_all_sci = sci_dataset[sci_dataset.user_loc.isin(lmic_gid1_names)].copy()
         agg_sci_from_region_to_all_sci = agg_sci_from_region_to_all_sci.groupby('user_loc').agg(
@@ -343,24 +277,27 @@ class DataPreprocessing:
         agg_sci_from_region_to_africa = agg_sci_from_region_to_africa.groupby('user_loc').agg(
             Total_SCI_in_Africa=('scaled_sci', 'sum')).reset_index()
 
-        # merge all sci related features for only LMICs
-        new_sci = self.compute_sci_share_in_fr(gadm1_dhs_dataset, sci_dataset)
-        print(new_sci.head())
-        new_sci.to_csv('combined_dataset/new_sci.csv')
+        # merge all sci related features for only African Countries
         distance_between_sci = self.compute_distance_indices(gadm1_dhs_dataset[['GID_1', 'geometry']], sci_dataset)
         avg_median_std_sci = self.calculate_avg_median_std_SCI(sci_dataset, lmic_gid1_names)
         regional_ratios = self.calculate_regional_ratios(sci_dataset, agg_sci_from_region_to_africa,
                                                          agg_sci_from_region_to_all_sci)
-
-        distance_nd_avg_sc = avg_median_std_sci.merge(distance_between_sci, on='user_loc', how='inner').reset_index()
+        avg_median_std__with_agg_sci = agg_data_on_sci_of_fr_loc.merge(avg_median_std_sci, on='user_loc',
+                                                                       how='inner').reset_index()
+        distance_nd_avg_sc = avg_median_std__with_agg_sci.merge(distance_between_sci, on='user_loc',
+                                                                how='inner').reset_index()
         sci_features = distance_nd_avg_sc.merge(regional_ratios, on="user_loc", how="inner")
         dhs_sci_dataset = pd.merge(gadm1_dhs_dataset, sci_features, left_on='GID_1', right_on='user_loc', how='inner')
         # end of sci features addition
+        obj = Dataset_Creator_World_Covariates()
+        covariate_data = obj.calculate_all_covariates(dhs_sci_dataset, level_config, wpop_source_base_url)
 
         saving_path_variables, saving_path_geometries = self.saving_path_for_gadm_file(self.GADM_LEVEL)
         geometries_cols = ['GID_1', 'geometry']
-        dhs_sci_geometries = dhs_sci_dataset[geometries_cols]
-        dhs_variables = dhs_sci_dataset.loc[:, ~dhs_sci_dataset.columns.isin(['geometry'])]
+        dhs_sci_geometries = covariate_data[geometries_cols]
+        dhs_variables = covariate_data.loc[:,
+                        ~covariate_data.columns.isin(['geometry'])]
+
         dhs_variables = dhs_variables.T.drop_duplicates().T
         dhs_variables.drop(columns=['GID_1'])
         dhs_variables = dhs_variables.drop(columns=['GID_1'])
