@@ -28,10 +28,9 @@ class Dataset_Creator_World_Covariates:
             try:
                 with rasterio.open(config[row['GID_0']]) as src:
                     out_image, out_transform = mask(src, [row['geometry']], crop=True)
-                    out_meta = src.meta
+
                 out_image = np.where(out_image > 0, out_image, 0)
-                count_ = np.count_nonzero(out_image)
-                gadm_1_dataset.at[index, mean_label] = np.sum(out_image) / count_
+                gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image>0], dtype=np.float64)
                 gadm_1_dataset.at[index, std_label] = np.std(out_image, dtype=np.float64)
             except Exception as e:
                 logger.error(e)
