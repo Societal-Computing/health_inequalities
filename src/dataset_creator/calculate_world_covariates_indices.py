@@ -1,10 +1,13 @@
 import os
 import sys
 from os.path import join
+import json
 
 import numpy as np
 import rasterio
 from rasterio.mask import mask
+import geopandas as  gpd
+from pathlib import Path
 
 sys.path.append(join(os.getcwd(), 'src'))
 from logger import logger
@@ -12,7 +15,6 @@ from utils.helper_functions import covariance_indices_downloader
 
 
 class Dataset_Creator_World_Covariates:
-
     def calculate_single_covariant_index(self, gadm_1_dataset, config, source_base_url, mean_label, std_label):
         gadm_1_dataset = gadm_1_dataset.to_crs('4326')
         destination_path = config['destination_path']
@@ -50,4 +52,18 @@ class Dataset_Creator_World_Covariates:
                                                          source_base_url, "Mean_distance_to_major_rd",
                                                          "Std_distance_to_major_rd")
 
-        return out_data
+        return out_data[["GID_1", "Mean_of_Night_Light", "Std_of_Night_Light", "Mean_distance_to_major_rd_intesection",
+                         "Std_distance_to_major_rd_intesection", "Mean_distance_to_major_rd",
+                         "Std_distance_to_major_rd"]]
+
+if __name__ == "__main__":
+    config_path = "config_scripts/dataset_config.json"
+    with open(config_path) as pth:
+        config = json.load(pth)
+    wpop_source_base_url = config['wpop_source_base_url']
+    level_config = config.pop("GADM_1")
+    obj = Dataset_Creator_World_Covariates()
+    africa_geometries = gpd.read_file("external_dataset/all_shapefiles.gpkg")
+    covariate_data = obj.calculate_all_covariates(africa_geometries, level_config, wpop_source_base_url)
+    save_path = Path(config['saving_path']).joinpath("wpop_covariates_data.csv").as_posix()
+    covariate_data.to_csv(save_path)
