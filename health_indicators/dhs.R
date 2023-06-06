@@ -1,12 +1,11 @@
 library(haven)          # Load stata files
 library(tidyverse)      # Method chaining
-library(survey)         # Survey aggregation
-library(naniar)         # replace_with_na function
 library(labelled)       # Set variable labels
-library(matrixStats)    # Set variable labels
+library(naniar)         # replace_with_na function
 library(sf)             # read shape files
 
 options(dplyr.summarise.inform = FALSE)
+select <- dplyr::select
 
 # Functions and directories -----------------------------------------------
 codewd <- "/Users/tillkoebe/Documents/GitHub/health_inequalities/health_indicators"
@@ -207,218 +206,139 @@ for(i in country_ls){
       # Aggregate to geography of interest --------------------------------------
       
       ACdata <- ACdata %>% 
-        mutate(across(v013:v190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'female') %>% 
+        mutate(across(c(rh_anc_pv, rh_anc_numvs, rh_anc_moprg), ~as.character(as_factor(.x))),
+               rh_anc_pv = ifelse(rh_anc_pv == 'No ANC', 0, 
+                                     ifelse(is.na(rh_anc_pv), NA, 1)),
+               rh_anc_numvs = ifelse(rh_anc_numvs == '2-3' | rh_anc_numvs == '4+', 1, 
+                                     ifelse(rh_anc_numvs == '1', 0, NA)),
+               rh_anc_moprg = ifelse(rh_anc_moprg == '<4', 0, 
+                                         ifelse(rh_anc_moprg == '4-5' | rh_anc_moprg == '6-7' | rh_anc_moprg == '8+', 1, NA))) %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
         select(GID_1, 
-               sex, 
-               v169a, # owns mobile phone
+               wt,
                rh_anc_pv:rh_anc_moprg) %>% 
-        pivot_wider(
-          names_from = c(sex, v169a),
-          names_sep = "_",
-          values_from = c(rh_anc_pv:rh_anc_moprg),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
+        group_by(GID_1) %>% 
+        summarise(across(rh_anc_pv:rh_anc_moprg,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
       
       BFdata <- BFdata %>% 
-        mutate(across(v013:v190, as_factor),
-               across(where(is.factor), as.character)) %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
         select(GID_1, 
-               # v013, # age groups
-               v169a, # owns mobile phone
-               # v171b, # frequency of internet use
-               # v190, # wealth index quintile
-               nt_bf_ever:nt_bottle) %>% 
-        pivot_wider(
-          names_from = c(v169a),
-          names_sep = "_",
-          values_from = c(nt_bf_ever:nt_bottle),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
+               wt,nt_bf_ever:nt_bottle) %>% 
+        group_by(GID_1) %>% 
+        summarise(across(nt_bf_ever:nt_bottle,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
       
       CHdata <- CHdata %>% 
-        mutate(across(b4:v190, as_factor),
-               across(where(is.factor), as.character)) %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
         select(GID_1, 
-               # b4, # child's sex
-               # b8, # child's age
-               v169a, # mother owns mobile phone
-               # v171b, # frequency of internet use
-               # v190, # wealth index quintile
+               wt,
                ch_allvac_either, ch_novac_either) %>% 
-        pivot_wider(
-          names_from = c(v169a),
-          names_sep = "_",
-          values_from = c(ch_allvac_either, ch_novac_either),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
+        group_by(GID_1) %>% 
+        summarise(across(ch_allvac_either:ch_novac_either,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
       
       CKdata <- CKdata %>% 
-        mutate(across(v013:v190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'female') %>% 
+        select(v001, 
+               fp_know_any:fp_know_trad) %>% 
+        bind_rows(
+          CKmdata %>% 
+            rename_with(., ~ sub(".", "", .x), .cols = c(mv000:mv190)) %>% 
+            select(v001, 
+                   fp_know_any:fp_know_trad)
+        ) %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
-        select(GID_1, 
-               sex, 
-               # v013, # age groups
-               v169a, # owns mobile phone
-               # v171b, # frequency of internet use
-               # v190, # wealth index quintile
-               fp_know_any:fp_know_trad) %>% 
-        pivot_wider(
-          names_from = c(sex, v169a),
-          names_sep = "_",
-          values_from = c(fp_know_any:fp_know_trad),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
+        select(-v001, -geometry) %>% 
+        group_by(GID_1) %>% 
+        summarise(across(fp_know_any:fp_know_trad,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
       
-      CKmdata <- CKmdata %>% 
-        mutate(across(mv013:mv190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'male') %>% 
-        left_join(GEOdata, 
-                  by = join_by(mv001 == DHSCLUST)) %>% 
-        select(GID_1, 
-               sex, 
-               mv169a, # owns mobile phone
-               fp_know_any:fp_know_trad) %>% 
-        pivot_wider(
-          names_from = c(sex, mv169a),
-          names_sep = "_",
-          values_from = c(fp_know_any:fp_know_trad),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
       
       CPdata <- CPdata %>% 
-        mutate(across(v013:v190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'female') %>% 
+        select(v001, 
+               fp_message_noneof4:fp_message_noneof3) %>% 
+        bind_rows(
+          CPmdata %>% 
+            rename_with(., ~ sub(".", "", .x), .cols = c(mv000:mv190)) %>% 
+            select(v001, 
+                   fp_message_noneof4:fp_message_noneof3)
+        ) %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
-        select(GID_1, 
-               sex, 
-               v169a, # owns mobile phone
-               fp_message_noneof4:fp_message_noneof3) %>% 
-        pivot_wider(
-          names_from = c(sex, v169a),
-          names_sep = "_",
-          values_from = c(fp_message_noneof4:fp_message_noneof3),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
-      
-      CPmdata <- CPmdata %>% 
-        mutate(across(mv013:mv190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'male') %>% 
-        left_join(GEOdata, 
-                  by = join_by(mv001 == DHSCLUST)) %>% 
-        select(GID_1, 
-               sex, 
-               mv169a, # owns mobile phone
-               fp_message_noneof4:fp_message_noneof3) %>% 
-        pivot_wider(
-          names_from = c(sex, mv169a),
-          names_sep = "_",
-          values_from = c(fp_message_noneof4:fp_message_noneof3),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
+        select(-v001, -geometry) %>% 
+        group_by(GID_1) %>% 
+        summarise(across(fp_message_noneof4:fp_message_noneof3,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
       
       if(!no_DV){
         DVdata <- DVdata %>% 
-          mutate(across(v013:v190, as_factor),
-                 across(where(is.factor), as.character),
-                 sex = 'female') %>% 
           left_join(GEOdata, 
                     by = join_by(v001 == DHSCLUST)) %>% 
           select(GID_1, 
-                 sex, 
-                 v169a, # owns mobile phone
                  dv_sex_12m, dv_phy_12m) %>% 
-          pivot_wider(
-            names_from = c(sex, v169a),
-            names_sep = "_",
-            values_from = c(dv_sex_12m, dv_phy_12m),
-            values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-          )
+          group_by(GID_1) %>% 
+          summarise(across(dv_sex_12m:dv_phy_12m,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+          ) %>% 
+          ungroup
       }
       
       HAdata <- HAdata %>% 
-        mutate(across(v013:v190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'female') %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
         select(GID_1, 
-               sex, 
-               v169a, # owns mobile phone
                rh_prob_permit:rh_prob_minone) %>% 
-        pivot_wider(
-          names_from = c(sex, v169a),
-          names_sep = "_",
-          values_from = c(rh_prob_permit:rh_prob_minone),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
+        group_by(GID_1) %>% 
+        summarise(across(rh_prob_permit:rh_prob_minone,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
       
       WEdata <- WEdata %>% 
-        mutate(across(v013:v190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'female') %>% 
+        select(v001, 
+               we_decide_all:we_justify_cond,
+               we_num_justifydv) %>% 
+        bind_rows(
+          WEmdata %>%
+            rename_with(., ~ sub(".", "", .x), .cols = c(mv000:mv190)) %>%
+            select(v001,
+                   we_decide_all:we_justify_cond,
+                   we_num_justifydv)
+        ) %>%
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
-        select(GID_1, 
-               sex, 
-               v169a, # owns mobile phone
-               we_num_decide:we_num_justifydv) %>% 
-        pivot_wider(
-          names_from = c(sex, v169a),
-          names_sep = "_",
-          values_from = c(we_num_decide:we_num_justifydv),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
-      
-      WEmdata <- WEmdata %>% 
-        mutate(across(mv013:mv190, as_factor),
-               across(where(is.factor), as.character),
-               sex = 'male') %>% 
-        left_join(GEOdata, 
-                  by = join_by(mv001 == DHSCLUST)) %>% 
-        select(GID_1, 
-               sex, 
-               mv169a, # owns mobile phone
-               we_num_decide:we_num_justifydv) %>% 
-        pivot_wider(
-          names_from = c(sex, mv169a),
-          names_sep = "_",
-          values_from = c(we_num_decide:we_num_justifydv),
-          values_fn = ~ weighted.mean(.x, wt = wt, na.rm = TRUE)
-        )
-      
+        select(-v001, -geometry) %>% 
+        mutate(across(we_num_justifydv, ~as.character(as_factor(.x))),
+               we_num_justifydv = ifelse(we_num_justifydv == '0', 0, 
+                                         ifelse(is.na(we_num_justifydv), NA, 1))) %>% 
+        group_by(GID_1) %>% 
+        summarise(across(c(we_decide_all:we_justify_cond, we_num_justifydv),
+                         ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
+        
       temp <- ACdata %>% 
         left_join(BFdata, by = 'GID_1') %>% 
         left_join(CHdata, by = 'GID_1') %>% 
         left_join(CKdata, by = 'GID_1') %>% 
-        left_join(CKmdata, by = 'GID_1') %>% 
         left_join(CPdata, by = 'GID_1') %>% 
-        left_join(CPmdata, by = 'GID_1') %>% 
         left_join(DVdata, by = 'GID_1') %>% 
         left_join(HAdata, by = 'GID_1') %>% 
-        left_join(WEdata, by = 'GID_1') %>%
-        left_join(WEmdata, by = 'GID_1')
+        left_join(WEdata, by = 'GID_1')
       
       # Add control variables ---------------------------------------------------
       
       control_vars <- c('sex', # gender,
                         'v001', # cluster
                         'v013', # age group
-                        'v025',
+                        'v025', # urban/rural
                         'v045b', # interview language
                         'v130', # religion
                         'v169a', # mobile phone ownership
@@ -487,7 +407,7 @@ for(i in country_ls){
                                   "richest" = 5)) %>%
         mutate(across(control_vars[!control_vars == 'v001'], as_factor),
                across(where(is.factor), as.character)
-               ) %>% 
+        ) %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
         mutate(maj_lang = 'lang_minor', # determine majority language
@@ -497,7 +417,7 @@ for(i in country_ls){
                                   v045b == names(which.max(table(v045b))), 'lang_major')) %>% 
         mutate(maj_rel = 'rel_minor', # determine majority religion
                maj_rel = replace(maj_rel, 
-                                  is.na(v130), 'rel_NA'),
+                                 is.na(v130), 'rel_NA'),
                maj_rel = replace(maj_rel, 
                                  v130 == names(which.max(table(v130))), 'rel_major')) %>% 
         select(-v001, -v045b, -geometry)
@@ -530,7 +450,7 @@ for(i in country_ls){
     dhs_health <- dhs_health %>% 
       bind_rows(temp  %>% 
                   mutate(across(everything(), ~ifelse(is.nan(.), NA, .)))
-                )
+      )
     
     rm(temp)
     
@@ -546,10 +466,10 @@ dhs_health <-
   filter(GID_1 != 'NA') %>% 
   rename(other_religion = other,
          na_religion = .data[['na']],
-    has_mobile_phone_yes = yes, has_mobile_phone_no = no) %>% 
+         has_mobile_phone_yes = yes, has_mobile_phone_no = no) %>% 
   select(where(~sum(!is.na(.x)) > 0),
          -.data[['9']], -.data[['99']])
-  
+
 
 write.csv(dhs_health,
           file='/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health.csv', 
