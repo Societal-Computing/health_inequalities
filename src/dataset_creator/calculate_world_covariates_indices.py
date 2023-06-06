@@ -5,6 +5,9 @@ from os.path import join
 import numpy as np
 import rasterio
 from rasterio.mask import mask
+import json
+import geopandas as gpd
+from pathlib import Path
 
 sys.path.append(join(os.getcwd(), 'src'))
 from logger import logger
@@ -42,12 +45,25 @@ class Dataset_Creator_World_Covariates:
                                                          "Mean_of_Night_Light", "Std_of_Night_Light")
         config_dist_major_rd_intersection = config['distance_to_mjr_rd_intersection_shapefiles']
         out_data = self.calculate_single_covariant_index(out_data, config_dist_major_rd_intersection, source_base_url,
-                                                         "Mean_distance_to_major_rd_intesection",
-                                                         "Std_distance_to_major_rd_intesection")
+                                                         "Mean_distance_to_major_rd_intersection",
+                                                         "Std_distance_to_major_rd_intersection")
 
         config_distance_to_mjr_rd_shapefiles = config['distance_to_mjr_rd_shapefiles']
         out_data = self.calculate_single_covariant_index(out_data, config_distance_to_mjr_rd_shapefiles,
                                                          source_base_url, "Mean_distance_to_major_rd",
                                                          "Std_distance_to_major_rd")
 
-        return out_data
+        return out_data[["GID_1", "Mean_of_Night_Light", "Std_of_Night_Light", "Mean_distance_to_major_rd_intersection",
+                         "Std_distance_to_major_rd_intersection", "Mean_distance_to_major_rd",
+                         "Std_distance_to_major_rd"]]
+
+if __name__ == "__main__":
+    config_path = "config_scripts/dataset_config.json"
+    with open(config_path) as pth:
+        config = json.load(pth)
+    all_shape_files = gpd.read_file(config['all_shapefiles_path'])[["GID_0", "GID_1", "geometry"]]
+    wpop_source_base_url = config['wpop_source_base_url']
+    obj = Dataset_Creator_World_Covariates()
+    covariate_data = obj.calculate_all_covariates(all_shape_files, config["GADM_1"], wpop_source_base_url)
+    saving_path = Path("external_dataset").joinpath("covariate_data.csv").as_posix()
+    covariate_data.to_csv(saving_path)
