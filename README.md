@@ -74,9 +74,13 @@ has a connection with.
 ```Median_SCI_to_fr_loc``` : Mean SCI of facebook users from source location connected to all other regions.
 
 ```Mean_friendship``` : Mean of number of friends from source location to all destinations.
+
 ```Median_friendship``` : Median of number of friends from source location to all destinations.
+
 ```Std_friendship``` : Std of number of friends from source location to all destinations.
+
 ```Total_friendship``` : Total number of friends from source location to all destinations.
+
 Note: health_index was stratified into quantiles of 3 with 
 ```Latex
  tolerance =  (max(health_index) - min(health_index))/ 3
