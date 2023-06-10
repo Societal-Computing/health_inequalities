@@ -2,12 +2,16 @@ import os
 import wget
 import time
 import sys
+from pathlib import Path
 from os.path import join
+import pandas as pd
+
 sys.path.append(join(os.getcwd(), 'src'))
 from logger import logger
 
 
-def covariance_indices_downloader(source_base_url, destination_path, variables_list, type_data, extended_url, task=None,):
+def covariance_indices_downloader(source_base_url, destination_path, variables_list, type_data, extended_url,
+                                  task=None, ):
     if task == 'night_light':
         split_value = '//'
     else:
@@ -25,3 +29,21 @@ def covariance_indices_downloader(source_base_url, destination_path, variables_l
             time.sleep(10)
 
     logger.info("Download completed !!!!!!")
+
+
+def worksheet_reader(data_path: str or Path) -> pd.DataFrame:
+    """
+    For parsing excel and csv dataset
+    :return:
+    """
+    data = None
+    data_path = Path(data_path)
+    if data_path.suffix == '.xlsx':
+        data = pd.read_excel(data_path, encoding='ISO-8859-1')
+    elif data_path.suffix == '.csv':
+        data = pd.read_csv(data_path, encoding='ISO-8859-1')
+    elif data_path.suffix == '.tsv':
+        data = pd.read_csv(data_path, delimiter="\t",  encoding='ISO-8859-1')
+    else:
+        logger.error("Use a worksheet file of either csv, tsv or xlsx format")
+    return data

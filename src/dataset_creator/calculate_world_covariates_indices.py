@@ -15,9 +15,9 @@ from utils.helper_functions import covariance_indices_downloader
 
 
 class Dataset_Creator_World_Covariates:
-
+    CRS = "EPSG:4326"
     def calculate_single_covariant_index(self, gadm_1_dataset, config, source_base_url, mean_label, std_label):
-        gadm_1_dataset = gadm_1_dataset.to_crs('4326')
+        gadm_1_dataset = gadm_1_dataset.to_crs(self.CRS)
         destination_path = config['destination_path']
         extended_url = config['extended_url']
         data_type = config['data_type']
@@ -33,10 +33,20 @@ class Dataset_Creator_World_Covariates:
                     out_image, out_transform = mask(src, [row['geometry']], crop=True)
 
                 out_image = np.where(out_image > 0, out_image, 0)
-                gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image>0], dtype=np.float64)
+                gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image> 0], dtype=np.float64)
                 gadm_1_dataset.at[index, std_label] = np.std(out_image, dtype=np.float64)
-            except Exception as e:
-                logger.error(e)
+            except Exception:
+                try:
+                    with rasterio.open(config[row['GID_0']]) as src:
+                        out_image, out_transform = mask(src, [row['geometry']], invert=True)
+
+                    out_image = np.where(out_image > 0, out_image, 0)
+                    gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image > 0], dtype=np.float64)
+                    gadm_1_dataset.at[index, std_label] = np.std(out_image, dtype=np.float64)
+                except Exception as in_ex:
+                    logger.error(in_ex)
+
+
         return gadm_1_dataset
 
     def calculate_all_covariates(self, gadm_1_dataset, config, source_base_url):
@@ -58,12 +68,13 @@ class Dataset_Creator_World_Covariates:
                          "Std_distance_to_major_rd"]]
 
 if __name__ == "__main__":
-    config_path = "config_scripts/dataset_config.json"
+    config_path = "config_scripts/covariates_config.json"
     with open(config_path) as pth:
         config = json.load(pth)
-    all_shape_files = gpd.read_file(config['all_shapefiles_path'])[["GID_0", "GID_1", "geometry"]]
+
+    all_shape_files = gpd.read_file(config['lmic_shapefile'])[["GID_0", "GID_1", "geometry"]]
     wpop_source_base_url = config['wpop_source_base_url']
     obj = Dataset_Creator_World_Covariates()
-    covariate_data = obj.calculate_all_covariates(all_shape_files, config["GADM_1"], wpop_source_base_url)
+    covariate_data = obj.calculate_all_covariates(all_shape_files, config, wpop_source_base_url)
     saving_path = Path("external_dataset").joinpath("covariate_data.csv").as_posix()
     covariate_data.to_csv(saving_path)
