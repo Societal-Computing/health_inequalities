@@ -110,7 +110,6 @@ class Data_Preprocessing_LMIC:
         logger.info(f"lmic shapefile saved in {save_path}")
 
 
-
 if __name__ == '__main__':
     config_path = "config_scripts/lmic_shapefiles_config.json"
     with open(config_path) as pth:
