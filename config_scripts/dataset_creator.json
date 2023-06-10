@@ -1,0 +1,9 @@
+{
+  "lmic_shapefile" : "external_dataset/lmic_shapefile.gpkg",
+  "sub_national_data_path" :"external_dataset/sub_national_data.csv",
+  "saving_path": "combined_dataset",
+  "covariates_data_path": "external_dataset/covariate_data.csv",
+  "dhs_health_data": "external_dataset/dhs_health.csv",
+  "sci_data_path" : "external_dataset/sci_indices.csv",
+  "afrobarometer_dataset_path" : "external_dataset/afrobarometer.csv"
+}

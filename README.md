@@ -10,19 +10,28 @@ Git repository for the corresponding paper with the working title 'Social connec
 
 #### Dataset creation
 
-``` python src/dataset_creator/lmic_dataset.py ```
-When code is executed, the program does the following:
-
-
-1. combines all shapefiles into a single shapefile
-
-2. combines single shapefile with Africa_dataset
-
-3. calculates features with meta SCI and combines with result from `3`
-
-4. combines result from `3` with generated health indicators
-
-6. save geometries shapefile and variables data in ``` /combined_dataset ```
+##### We followed the process to create our dataset for health inequalities analysis
+1. Preprocess and create `lmic_dataset.gpkg` 
+```python
+python src/dataset_creator/lmic_shapefile_creator.py 
+```
+2. Create `sci_indices.csv` by running 
+```python
+    python src/dataset_creator/calculate_sci_indices.py 
+```
+3. Create `covariates_data.csv`
+```python
+python src/dataset_creator/calculate_world_covariates_indices.py 
+```
+4. Create `sub_national_data.csv`
+```python
+python src/dataset_creator/pre_processing_gdl_data.py 
+```
+##### After the above mention data is saved, we run:
+```python
+python src/dataset_creator/health_inequalities_dataset_creator.py
+```
+Which combines all data from `1` to `4` and save in `/combined_dataset`
 
 For finer granularity, we use data on at ```GADM1``` level.
 
@@ -65,9 +74,24 @@ has a connection with.
 ```Median_SCI_to_fr_loc``` : Mean SCI of facebook users from source location connected to all other regions.
 
 ```Mean_friendship``` : Mean of number of friends from source location to all destinations.
+
 ```Median_friendship``` : Median of number of friends from source location to all destinations.
+
 ```Std_friendship``` : Std of number of friends from source location to all destinations.
+
 ```Total_friendship``` : Total number of friends from source location to all destinations.
+
+Note: health_index was stratified into quantiles of 3 with 
+```Latex
+ tolerance =  (max(health_index) - min(health_index))/ 3
+ low_hi = min(health_index) + tolerance
+ mid_hi = low_hi +  tolerance
+ high_hi = mid_hi + tolerance 
+```
+
+``` Ratio_SCI_low_hi_africa``` : Ratio of SCI with regions in country with low health_index
+``` Ratio_SCI_middle_hi_africa``` : Ratio of SCI with regions in country with middle health_index
+``` Ratio_SCI_high_hi_africa``` : Ratio of SCI with regions in country with high health_index
 
 #### Description of health indicators and controls from DHS
 

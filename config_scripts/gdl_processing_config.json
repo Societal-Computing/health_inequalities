@@ -1,0 +1,6 @@
+{
+  "gdl_hdi_dataset_path" : "../external_dataset/GDL_data/GDL-Subnational-HDI-data.csv",
+  "gdl_shapefile_path": "../external_dataset/GDL_data/GDL Shapefiles V6.1/",
+  "lmic_shapefile_path" : "external_dataset/lmic_shapefile.gpkg",
+  "save_path" :"external_dataset/sub_national_data.csv"
+}
