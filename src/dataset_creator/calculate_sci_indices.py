@@ -16,7 +16,7 @@ from utils.helper_functions import worksheet_reader
 
 class SCI_Indices_Calculator:
     CRS = "EPSG:4326"
-    QUANTILES = ["ratio_low_hi_africa", "ratio_middle_hi_africa", "ratio_high_hi_africa"]
+    QUANTILES = ["Ratio_SCI_low_hi_africa", "Ratio_SCI_middle_hi_africa", "Ratio_SCI_high_hi_africa"]
 
     def __init__(self, sci_data_path: str, all_shapefile_path: str, health_index_dataset_path: str):
         self.sci_dataset = worksheet_reader(sci_data_path)
@@ -276,7 +276,7 @@ class SCI_Indices_Calculator:
 
 
 if __name__ == "__main__":
-    config_path = "config_scripts/dataset_config.json"
+    config_path = "config_scripts/lmic_shapefiles_config.json"
     with open(config_path) as pth:
         config = json.load(pth)
     obj = SCI_Indices_Calculator(config["GADM_1"]["sci_dataset_path"], config["GADM_1"]["lmic_shapefile"], config["world_health_index_dataset_path"])
