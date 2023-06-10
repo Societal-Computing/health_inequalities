@@ -18,49 +18,23 @@ sci <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_
 ### DHS data
 dhs <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health.csv')
 
+### Afrobarometer
+afr <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/afrobarometer.csv')
+
 # Data preparation --------------------------------------------------------
 
-dhs_targets <- c('rh_anc_pv_female_yes',
-                 'rh_anc_pv_female_no',
-                 'rh_anc_pvskill_female_yes',
-                 'rh_anc_pvskill_female_no',
-                 "rh_anc_numvs_female_no",
-                 "rh_anc_numvs_female_yes",
-                 "rh_anc_4vs_female_no",
-                 "rh_anc_4vs_female_yes", 
-                 'nt_bf_ever_yes',
-                 'nt_bf_ever_no',
-                 'ch_allvac_either_yes',
-                 'ch_allvac_either_no',
-                 'ch_novac_either_yes',
-                 'ch_novac_either_no',
-                 # 'fp_know_any_female_yes',
-                 # 'fp_know_any_female_no',
-                 'fp_know_mod_female_yes',
-                 'fp_know_mod_female_no',
-                 # 'fp_know_any_male_yes',
-                 # 'fp_know_any_male_no',
-                 'fp_know_mod_male_yes',
-                 'fp_know_mod_male_no',
-                 'fp_message_noneof3_female_yes',
-                 'fp_message_noneof3_female_no',
-                 'fp_message_noneof3_male_yes',
-                 'fp_message_noneof3_male_no',
-                 # 'dv_sex_12m_female_yes',
-                 # 'dv_sex_12m_female_no',
-                 # 'dv_phy_12m_female_yes',
-                 # 'dv_phy_12m_female_no',
-                 'we_num_decide_female_yes',
-                 'we_num_decide_female_no',
-                 'we_num_justifydv_female_yes',
-                 'we_num_justifydv_female_no')
+### Define targets
+dhs_targets <- dhs %>% 
+  select(rh_anc_pv:we_num_justifydv) %>% 
+  names()
 
-
-dhs_controls <- c('poorest',
+### Define controls
+dhs_controls <- c(
+                  'poorest',
                   'poorer',
                   'middle',
-                  'richer',
-                  'richest',
+                  # 'richer',
+                  # 'richest',
                   'female',
                   'has_mobile_phone_yes',
                   'rural',
@@ -78,23 +52,48 @@ dhs_controls <- c('poorest',
                   # 'catholic'
 )
 
-sci_controls <- c('Local_mean_SCI',
-                  'Local_std_SCI',
-                  'Mean_dist_to_SCI',
-                  'LMIC_interconnection_index',
-                  'Intraconnection_index',
+sci_controls <- c('Mean_dist_to_SCI',
+                  'Std_dist_to_SCI',
+                  'Total_dist_to_SCI',
+                  'ratio_selfloop_to_country',
+                  'ratio_selfloop_to_africa',
+                  'ratio_selfloop_to_all_sci',
                   'Mean_SCI_without_Self',
                   'Std_SCI_without_Self',
                   'Mean_SCI_with_Self',
-                  'Std_SCI_with_Self'
+                  'Std_SCI_with_Self',
+                  'Mean_friendship',
+                  'Std_friendship',
+                  'Total_friendship'
 )
+
+wp_controls <- c(
+                 'Mean_of_Night_Light',
+                 'Std_of_Night_Light',
+                 'Mean_distance_to_major_rd_intesection',
+                 'Std_distance_to_major_rd_intesection',
+                 'Mean_distance_to_major_rd',
+                 'Std_distance_to_major_rd')
 
 fb_controls <- c('fb_rwi_mean',
                  'fb_rwi_mean_pop_wght',
                  'FB_pntr_15to49_female',
-                 'FB_pntr_15to49_all'
+                 'FB_pntr_15to49_all',
+                 'All_devices_age_13_plus_fm_ratio'
 )
 
+afr_controls <- c('trpar',
+                  'trtax',
+                   'trgov',
+                   'trlaw',
+                   'trgen',
+                   'trrel',
+                   'trnei',
+                   'tracq')
+
+						
+
+### Prepare dataset
 dat <- dhs %>% 
   select(GID_1,
          all_of(dhs_targets),
@@ -102,23 +101,41 @@ dat <- dhs %>%
   left_join(sci %>% 
               select(GID_1,
                      all_of(sci_controls),
-                     all_of(fb_controls)),
+                     all_of(fb_controls),
+                     all_of(wp_controls)),
+            by = 'GID_1') %>% 
+  left_join(afr %>% 
+              select(GID_1,
+                     all_of(afr_controls)),
             by = 'GID_1')
-
 
 # Preprocess --------------------------------------------------------------
 
 ### Center and scale SCI variables
 dat <- dat %>% 
-  mutate(across(sci_controls, ~ scale(.x, scale = T)))
+  mutate(across(all_of(sci_controls), ~ scale(.x, scale = T)),
+         across(all_of(wp_controls), ~ scale(.x, scale = T)),
+         across(all_of(afr_controls), ~ scale(.x, scale = T)))
 
-# Define interaction effects ----------------------------------------------
+### Define interaction effects
 
-dhs_controls_interaction <- crossing(dhs_controls, dhs_controls) %>% 
-  mutate(interaction = paste0(dhs_controls...1,':',dhs_controls...2)) %>% 
+sci_dhs_interaction <- crossing(sci_controls, dhs_controls) %>% 
+  mutate(interaction = paste0(sci_controls,':',dhs_controls)) %>% 
   select(interaction) %>% 
   t %>% 
   as.vector
+
+sci_wp_interaction <- crossing(sci_controls, wp_controls) %>% 
+  mutate(interaction = paste0(dhs_controls,':',wp_controls)) %>% 
+  select(interaction) %>% 
+  t %>% 
+  as.vector
+
+### Avoid infinite ratios
+dat[dat == 0] <- 0.00001
+
+### Define ratio operator
+ratio_operator <- '-' # '/'
 
 # Linear regression -------------------------------------------------------
 
@@ -127,39 +144,86 @@ overview <- data.frame()
 for(i in dhs_targets){ #dhs_targets[grepl("rh_", dhs_targets)]
   
   temp <- dat %>% 
-    select(i, dhs_controls, sci_controls, fb_controls) %>% 
+    select(i, dhs_controls, 
+           sci_controls, fb_controls, wp_controls, afr_controls) %>%
     drop_na
   
+  ### SCI only
+  results_only_sci <- lm(paste(i, '~', 
+                      paste(sci_controls, collapse = '+')), temp)
+  
   ### With SCI
-  results <- lm(paste(i, '~', 
+  results_all <- lm(paste(i, '~', 
                       paste(dhs_controls, collapse = '+'), '+',
                       paste(sci_controls, collapse = '+'), '+',
                       paste(fb_controls, collapse = '+'), '+',
-                      paste(dhs_controls_interaction, collapse = '+')), temp)
+                      paste(wp_controls, collapse = '+'), '+',
+                      paste(afr_controls, collapse = '+'), '+',
+                      paste(sci_dhs_interaction, collapse = '+')), temp)
+  
+  ### Without interactions
+  results_no_interactions <- lm(paste(i, '~', 
+                          paste(dhs_controls, collapse = '+'), '+',
+                          paste(sci_controls, collapse = '+'), '+',
+                          paste(fb_controls, collapse = '+'), '+',
+                          paste(wp_controls, collapse = '+'), '+',
+                          paste(afr_controls, collapse = '+')), temp)
   
   ### Without SCI
   results_no_sci <- lm(paste(i, '~', 
                              paste(dhs_controls, collapse = '+'), '+',
                              paste(fb_controls, collapse = '+'), '+',
-                             paste(dhs_controls_interaction, collapse = '+')), temp)
+                             paste(wp_controls, collapse = '+'), '+',
+                             paste(afr_controls, collapse = '+')), temp)
+  
+  ### Without WP
+  results_no_wp <- lm(paste(i, '~', 
+                             paste(dhs_controls, collapse = '+'), '+',
+                            paste(sci_controls, collapse = '+'), '+',
+                             paste(fb_controls, collapse = '+'), '+',
+                            paste(afr_controls, collapse = '+'), '+',
+                            paste(sci_dhs_interaction, collapse = '+')), temp)
+  
+  ### Without FB
+  results_no_fb <- lm(paste(i, '~', 
+                            paste(dhs_controls, collapse = '+'), '+',
+                            paste(sci_controls, collapse = '+'), '+',
+                            paste(wp_controls, collapse = '+'), '+',
+                            paste(afr_controls, collapse = '+'), '+',
+                            paste(sci_dhs_interaction, collapse = '+')), temp)
+  
+  ### Without Afrobarometer
+  results_no_afr <- lm(paste(i, '~', 
+                      paste(dhs_controls, collapse = '+'), '+',
+                      paste(sci_controls, collapse = '+'), '+',
+                      paste(fb_controls, collapse = '+'), '+',
+                      paste(wp_controls, collapse = '+'), '+',
+                      paste(sci_dhs_interaction, collapse = '+')), temp)
   
   ### Lucky shot
   results_lucky <- lm(paste(i, '~', 
                             paste(dhs_controls, collapse = '+'), '+',
-                            paste(fb_controls, collapse = '+')), 
+                            paste(sci_controls, collapse = '+'), '+',
+                            paste(fb_controls, collapse = '+'), '+',
+                            paste(wp_controls, collapse = '+'), '+',
+                            paste(afr_controls, collapse = '+'), '+',
+                            paste(sci_dhs_interaction, collapse = '+')), 
                       temp %>% 
-                        mutate(across(c(dhs_controls, sci_controls, fb_controls), 
+                        mutate(across(c(dhs_controls, sci_controls, fb_controls, wp_controls, afr_controls), 
                                       ~ sample(.x, length(.x), replace = T)))
   )
   
-  
-  
   temp <- data.frame(
     target = i,
-    adj_r_sci = round(summary(results)$adj.r.squared, digits = 2),
+    adj_r_only_sci = round(summary(results_only_sci)$adj.r.squared, digits = 2),
+    adj_r_all = round(summary(results_all)$adj.r.squared, digits = 2),
+    adj_r_no_interactions = round(summary(results_no_interactions)$adj.r.squared, digits = 2),
     adj_r_no_sci = round(summary(results_no_sci)$adj.r.squared, digits = 2),
+    adj_r_no_wp = round(summary(results_no_wp)$adj.r.squared, digits = 2),
+    adj_r_no_fb = round(summary(results_no_fb)$adj.r.squared, digits = 2),
+    adj_r_no_afr = round(summary(results_no_afr)$adj.r.squared, digits = 2),
     adj_r_lucky = round(summary(results_lucky)$adj.r.squared, digits = 2),
-    n_obs = nobs(results)
+    n_obs = nobs(results_all)
   )
   
   overview <- overview %>% 
@@ -168,47 +232,42 @@ for(i in dhs_targets){ #dhs_targets[grepl("rh_", dhs_targets)]
 }
 
 overview <- overview %>% 
-  mutate(diff = adj_r_sci - adj_r_no_sci)
-
-
+  mutate(diff = adj_r_all - adj_r_no_sci)
 
 # Linear regression hand-picked -------------------------------------------
 
-i <- 'rh_anc_pvskill_female_no'
+i <- 'nt_bf_ever'
 
 temp <- dat %>% 
-  select(all_of(i), dhs_controls, sci_controls, fb_controls) %>% 
+  select(i, dhs_controls, sci_controls, fb_controls, wp_controls) %>% #, afr_controls
   drop_na
 
-results_hand <- lm(paste(i, '~', 
+results_hand <- lm(paste0(i, '~', 
                          paste(dhs_controls, collapse = '+'), '+',
                          paste(sci_controls, collapse = '+'), '+',
                          paste(fb_controls, collapse = '+'), '+',
-                         paste(dhs_controls_interaction, collapse = '+')),
-                   temp)
+                         paste(wp_controls, collapse = '+'), '+',
+                         paste(sci_dhs_interaction, collapse = '+')), temp)
 
 results_hand_select <- stepAIC(results_hand, direction = "both", trace=FALSE)
 
-results_hand_no_sci <- lm(paste(i, '~', 
-                                paste(dhs_controls, collapse = '+'), '+',
-                                paste(fb_controls, collapse = '+'), '+',
-                                paste(dhs_controls_interaction, collapse = '+')),
-                          temp)
+results_hand_no_inter <- lm(paste0(i, '~', 
+                          paste(dhs_controls, collapse = '+'), '+',
+                          paste(sci_controls, collapse = '+'), '+',
+                          paste(fb_controls, collapse = '+'), '+',
+                          paste(wp_controls, collapse = '+')), temp)
+
+results_hand_no_inter_select <- stepAIC(results_hand_no_inter, direction = "both", trace=FALSE)
+
+results_hand_no_sci <- lm(paste0(i, '~', 
+                                 paste(dhs_controls, collapse = '+'), '+',
+                                 paste(fb_controls, collapse = '+'), '+',
+                                 paste(wp_controls, collapse = '+'), '+',
+                                 paste(afr_controls, collapse = '+')), temp)
 
 results_hand_select_no_sci <- stepAIC(results_hand_no_sci, direction = "both", trace=FALSE)
 
-### Lucky shot
-results_hand_lucky <- lm(paste(i, '~', 
-                               paste(dhs_controls, collapse = '+'), '+',
-                               paste(fb_controls, collapse = '+')), 
-                         temp %>% 
-                           mutate(across(c(dhs_controls, sci_controls, fb_controls), 
-                                         ~ sample(.x, length(.x), replace = T)))
-)
-
-results_hand_select_lucky <- stepAIC(results_hand_lucky, direction = "both", trace=FALSE)
-
-tab_model(results_hand_select, results_hand_select_no_sci)
+tab_model(results_hand_select, results_hand_no_inter_select, results_hand_select_no_sci)
 
 # Linear regression with model selection ----------------------------------
 
@@ -224,8 +283,7 @@ for(i in dhs_targets){ #dhs_targets[grepl("rh_", dhs_targets)]
   results_select_all <- lm(paste(i, '~', 
                                  paste(dhs_controls, collapse = '+'), '+',
                                  paste(sci_controls, collapse = '+'), '+',
-                                 paste(fb_controls, collapse = '+'), '+',
-                                 paste(dhs_controls_interaction, collapse = '+')),
+                                 paste(fb_controls, collapse = '+')),
                            temp)
   
   results_select <- stepAIC(results_select_all, direction = "both", trace=FALSE)
@@ -233,8 +291,7 @@ for(i in dhs_targets){ #dhs_targets[grepl("rh_", dhs_targets)]
   ### Without SCI
   results_select_all_no_sci <- lm(paste(i, '~', 
                                         paste(dhs_controls, collapse = '+'), '+',
-                                        paste(fb_controls, collapse = '+'), '+',
-                                        paste(dhs_controls_interaction, collapse = '+')),
+                                        paste(fb_controls, collapse = '+')),
                                   temp)
   
   results_select_no_sci <- stepAIC(results_select_all_no_sci, direction = "both", trace=FALSE)
@@ -293,7 +350,7 @@ kable(head(test),caption='Normal `kable` usage.')
 
 # Random Forest -----------------------------------------------------------
 
-i <- 'fp_message_noneof3_female_no'
+i <- 'fp_message_noneof3_female_no_poorest'
 
 temp <- dat %>% 
   select(i, dhs_controls, sci_controls, fb_controls) %>% 
@@ -315,7 +372,7 @@ tuneGrid <-  expand.grid(interaction.depth = c(1, 5, 9),
 
 nrow(tuneGrid)
 
-fit1 <- train(fp_message_noneof3_female_no ~ ., data = training, 
+fit1 <- train(fp_message_noneof3_female_no_poorest ~ ., data = training, 
                  method = "qrf", #svmRadial #gbm #rf #gaussprRadial #qrf
                  trControl = fitControl, 
                  verbose = FALSE, 

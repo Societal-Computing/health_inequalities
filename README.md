@@ -10,6 +10,12 @@ Git repository for the corresponding paper with the working title 'Social connec
 
 #### Dataset creation
 
+##### We followed the process to create our dataset
+1. Preprocess and create `lmic_dataset.gpkg` 
+2. Create `sci_indices.csv` 
+3. Create `covariates_data.csv`
+4. Create `global_hdi_data.csv`
+
 ``` python src/dataset_creator/lmic_dataset.py ```
 When code is executed, the program does the following:
 
