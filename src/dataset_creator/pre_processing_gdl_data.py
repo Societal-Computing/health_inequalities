@@ -21,7 +21,8 @@ def combine_hdi_lmic(gdl_hdi_dataset_path, gdl_shapefile_path, lmic_shapefile_pa
     lmic_geometries = lmic_geometries.to_crs(CRS)
     gdl_with_geom = gpd.GeoDataFrame(
         gdl_hdi_data.merge(gdl_geometries, left_on='GDLCODE', right_on='gdlcode', how='inner')).to_crs(CRS)
-    sub_nat_ind = lmic_geometries.sjoin(gdl_with_geom, how="left")
+    #sub_nat_ind = lmic_geometries.sjoin(gdl_with_geom, how="left")
+    
     logger.info(f"Common maps are filtered from LMIC geometries and Sub-national data with {len(sub_nat_ind)} records")
     sub_nat_ind = sub_nat_ind[["GID_1", "2021"]]
     sub_nat_ind.rename(columns={'2021': 'HDI'}, inplace=True)
