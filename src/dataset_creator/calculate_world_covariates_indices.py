@@ -1,13 +1,13 @@
+import json
 import os
 import sys
 from os.path import join
+from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import rasterio
 from rasterio.mask import mask
-import json
-import geopandas as gpd
-from pathlib import Path
 
 sys.path.append(join(os.getcwd(), 'src'))
 from logger import logger
@@ -16,6 +16,7 @@ from utils.helper_functions import covariance_indices_downloader
 
 class Dataset_Creator_World_Covariates:
     CRS = "EPSG:4326"
+
     def calculate_single_covariant_index(self, gadm_1_dataset, config, source_base_url, mean_label, std_label):
         gadm_1_dataset = gadm_1_dataset.to_crs(self.CRS)
         destination_path = config['destination_path']
@@ -33,7 +34,7 @@ class Dataset_Creator_World_Covariates:
                     out_image, out_transform = mask(src, [row['geometry']], crop=True)
 
                 out_image = np.where(out_image > 0, out_image, 0)
-                gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image> 0], dtype=np.float64)
+                gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image > 0], dtype=np.float64)
                 gadm_1_dataset.at[index, std_label] = np.std(out_image, dtype=np.float64)
             except Exception:
                 try:
@@ -45,7 +46,6 @@ class Dataset_Creator_World_Covariates:
                     gadm_1_dataset.at[index, std_label] = np.std(out_image, dtype=np.float64)
                 except Exception as in_ex:
                     logger.error(in_ex)
-
 
         return gadm_1_dataset
 
@@ -62,10 +62,10 @@ class Dataset_Creator_World_Covariates:
         out_data = self.calculate_single_covariant_index(out_data, config_distance_to_mjr_rd_shapefiles,
                                                          source_base_url, "Mean_distance_to_major_rd",
                                                          "Std_distance_to_major_rd")
-
         return out_data[["GID_1", "Mean_of_Night_Light", "Std_of_Night_Light", "Mean_distance_to_major_rd_intersection",
                          "Std_distance_to_major_rd_intersection", "Mean_distance_to_major_rd",
                          "Std_distance_to_major_rd"]]
+
 
 if __name__ == "__main__":
     config_path = "config_scripts/covariates_config.json"
