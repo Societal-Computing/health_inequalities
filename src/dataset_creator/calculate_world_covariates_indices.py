@@ -76,5 +76,4 @@ if __name__ == "__main__":
     wpop_source_base_url = config['wpop_source_base_url']
     obj = Dataset_Creator_World_Covariates()
     covariate_data = obj.calculate_all_covariates(all_shape_files, config, wpop_source_base_url)
-    saving_path = Path("external_dataset").joinpath("covariate_data.csv").as_posix()
-    covariate_data.to_csv(saving_path)
+    covariate_data.to_csv(config['saving_path'])
