@@ -11,6 +11,12 @@ from utils.helper_functions import worksheet_reader, generate_hash_value
 
 CRS = "4326"
 
+def gen_ID(GDLCODE):
+    id = GDLCODE[:3]+GDLCODE[-2:]
+    if id[3] == '0':
+        return id.replace('0','')
+    else:
+        return id
 
 def combine_hdi_lmic(gdl_hdi_dataset_path, gdl_shapefile_path, lmic_shapefile_path, save_path):
     gdl_hdi_data = worksheet_reader(gdl_hdi_dataset_path)
@@ -18,18 +24,15 @@ def combine_hdi_lmic(gdl_hdi_dataset_path, gdl_shapefile_path, lmic_shapefile_pa
     gdl_geometries = gpd.read_file(gdl_shapefile_path)
     lmic_geometries = gpd.read_file(lmic_shapefile_path)[["GID_1", "geometry"]]
     logger.info(f"LMIC geometries data read with {len(lmic_geometries)} records")
-    lmic_geometries = lmic_geometries.to_crs(CRS)
+    #lmic_geometries = lmic_geometries.set_crs(CRS)
+
     gdl_with_geom = gpd.GeoDataFrame(
         gdl_hdi_data.merge(gdl_geometries, left_on='GDLCODE', right_on='gdlcode', how='inner')).to_crs(CRS)
+    #gdl_with_geom = gdl_with_geom.set_crs(CRS)
 
-    lmic_geometries['ID'] = lmic_geometries.apply(
-        lambda x: generate_hash_value(x['geometry']), axis=1)
+    gdl_with_geom['ID'] = gdl_with_geom.apply(lambda x: gen_ID(x['GDLCODE']), axis=1)
 
-    gdl_with_geom['ID'] =gdl_with_geom.apply(
-        lambda x: generate_hash_value(x['geometry']), axis=1)
-
-    #sub_nat_ind = lmic_geometries.sjoin(gdl_with_geom, how="left")
-    sub_nat_ind = lmic_geometries.merge(gdl_with_geom, on='ID', how='inner')
+    sub_nat_ind = lmic_geometries.merge(gdl_with_geom, left_on="GID_1" ,right_on='ID', how='inner')
     logger.info(f"Common maps are filtered from LMIC geometries and Sub-national data with {len(sub_nat_ind)} records")
     sub_nat_ind = sub_nat_ind[["GID_1", "2021"]]
     sub_nat_ind.rename(columns={'2021': 'HDI'}, inplace=True)
