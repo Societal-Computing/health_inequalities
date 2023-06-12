@@ -167,32 +167,32 @@ class SCI_Indices_Calculator:
         logger.info("Computations on raw SCI completed!")
         return avg_std
 
-    @classmethod
-    def get_quantile(cls, min_value, max_value):
-        quantiles = {}
-        lower_bound = min_value
-        tol_value = (max_value - min_value) / len(cls.QUANTILES)
-        upper_bound = lower_bound + tol_value
-        for i in range(len(cls.QUANTILES)):
-            # upper_bound = lower_bound + tol_value
-            quantiles[cls.QUANTILES[i]] = [lower_bound, upper_bound]
-            lower_bound = upper_bound
-            upper_bound += tol_value
-        return quantiles
+    # @classmethod
+    # def get_quantile(cls, min_value, max_value):
+    #     quantiles = {}
+    #     lower_bound = min_value
+    #     tol_value = (max_value - min_value) / len(cls.QUANTILES)
+    #     upper_bound = lower_bound + tol_value
+    #     for i in range(len(cls.QUANTILES)):
+    #         # upper_bound = lower_bound + tol_value
+    #         quantiles[cls.QUANTILES[i]] = [lower_bound, upper_bound]
+    #         lower_bound = upper_bound
+    #         upper_bound += tol_value
+    #     return quantiles
 
-    @staticmethod
-    def assign_quantile(value, quantiles):
-        for i, j in quantiles.items():
-            if j[1] > value >= j[0]:
-                return i
+    # @staticmethod
+    # def assign_quantile(value, quantiles):
+    #     for i, j in quantiles.items():
+    #         if j[1] > value >= j[0]:
+    #             return i
 
     def calculate_SCI_share_based_HI_quantiles(self, health_index_data, raw_sci, lmic_countries):
         raw_sci = raw_sci.copy()
         total_sci = raw_sci.groupby('user_loc').agg(Total_SCI=('scaled_sci', 'sum')).reset_index()
         quantiles = self.get_quantile(health_index_data['2021'].min(), health_index_data['2021'].max())
-        health_index_data['quantiles'] = health_index_data.apply(
-            lambda x: self.assign_quantile(x['2021'], quantiles), axis=1)
-
+        # health_index_data['quantiles_1'] = health_index_data.apply(
+        #     lambda x: self.assign_quantile(x['2021'], quantiles), axis=1)
+        health_index_data['quantiles'] = health_index_data.qcut('2021', 3, labels=self.QUANTILES)
         raw_sci = raw_sci[raw_sci.user_loc.isin(lmic_countries)]
         raw_sci['ISO_Code'] = raw_sci['fr_loc'].str[:3]
         raw_sci = raw_sci.merge(health_index_data, on='ISO_Code', how='inner')
