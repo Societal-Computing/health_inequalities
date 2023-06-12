@@ -1,9 +1,8 @@
 {
   "saving_path": "combined_dataset",
-  "dhs_dataset_path": "combined_dataset/dhs_health.csv",
   "wpop_source_base_url" : "https://data.worldpop.org/GIS/Covariates/Global_2000_2020/",
   "world_health_index_dataset_path": "../external_dataset/GDL_data/GDL-Subnational-HDI-data_national.csv",
-  "calc_hdi_data": "",
+  "fb_dataset_path" : "external_dataset/fb.csv",
   "GADM_1":{
       "shapefiles_path":{
       "SEN": "../external_dataset/Gadm_data/gadm41_SEN_shp/gadm41_SEN_1.shp",

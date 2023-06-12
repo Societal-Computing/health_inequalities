@@ -104,10 +104,17 @@ class Data_Preprocessing_LMIC:
         gadm1_dhs_dataset['HASC_1'] = gadm1_dhs_dataset.apply(lambda row: self.correct_HASC_1(row), axis=1)
         gadm1_dhs_dataset.drop(columns=['HASC_x'], inplace=True)
         gadm1_dhs_dataset = gpd.GeoDataFrame(gadm1_dhs_dataset, crs=self.CRS)
-
+        fb_headers = ['GID_1'] + [i for i in gadm1_dhs_dataset.columns.tolist() if "FB" in i or 'fb' in i]
+        fb_data = gadm1_dhs_dataset.loc[:,gadm1_dhs_dataset.columns.isin(fb_headers)]
+        gadm1_dhs_dataset = gadm1_dhs_dataset.loc[:,~gadm1_dhs_dataset.columns.isin([i for i in gadm1_dhs_dataset.columns.tolist() if "FB" in i or 'fb' in i])]
         save_path = "external_dataset/lmic_shapefile.gpkg"
         gadm1_dhs_dataset.to_file(f"{save_path}", driver="GPKG")
         logger.info(f"lmic shapefile saved in {save_path}")
+
+        save_path = "external_dataset/fb.csv"
+        fb_data.to_csv(save_path)
+        logger.info(f"fb_data saved in {save_path}")
+
 
 
 if __name__ == '__main__':

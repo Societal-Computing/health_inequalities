@@ -7,6 +7,7 @@ from os.path import join
 import pandas as pd
 import hashlib
 import shapely
+from shapely.geometry import Polygon
 
 sys.path.append(join(os.getcwd(), 'src'))
 from logger import logger
@@ -50,5 +51,5 @@ def worksheet_reader(data_path: str or Path) -> pd.DataFrame:
         logger.error("Use a worksheet file of either csv, tsv or xlsx format")
     return data
 
-def generate_hash_value(geometry):
+def generate_hash_value(geometry: Polygon):
     return hashlib.md5(bytes(shapely.wkb.dumps(geometry, hex=True), encoding="utf8")).hexdigest()
