@@ -1,6 +1,7 @@
 {
     "wpop_source_base_url" : "https://data.worldpop.org/GIS/Covariates/Global_2000_2020/",
     "lmic_shapefile" : "external_dataset/lmic_shapefile.gpkg",
+    "saving_path" : "external_dataset/wp.csv",
     "night_lights_shapefiles" : {
     "AGO": "../external_dataset/Night_Lights/ago_viirs_100m_2016.tif",
     "SEN": "../external_dataset/Night_Lights/sen_viirs_100m_2016.tif",
