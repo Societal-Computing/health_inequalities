@@ -92,12 +92,29 @@ class SCI_Indices_Calculator:
         sci_dataset['distance'] = sci_dataset['user_loc_centroid'].distance(sci_dataset['fr_loc_centroid'])
         sci_dataset = sci_dataset.to_crs(cls.CRS)
         sci_dataset['distance'] = sci_dataset['distance'].abs()
+
+        all_user_locs = sci_dataset['user_loc'].unique().tolist()
+        min_values_dict = {}
+        for user_loc_ in all_user_locs:
+            min_values_dict[user_loc_] = min(sci_dataset[(sci_dataset['user_loc'] == user_loc_) & sci_dataset['distance'] > 0]['distance'])
+        
+        for user_loc_ in min_values_dict:
+            sci_dataset.loc[(sci_dataset['user_loc'] == user_loc_) & (sci_dataset['fr_loc'] == user_loc_),'distance']= min_values_dict[user_loc_]
+
+        sci_dataset['distance'] = sci_dataset.apply(lambda x: 0.1 if x['distance'] <= 0 else x['distance'], axis=1)
+        
         sci_dataset.drop(columns=["fr_loc_centroid", "user_loc_centroid", "geometry"], inplace=True)
+        
+        new_data = sci_dataset.groupby(['user_loc']).apply(lambda x: np.average(x['distance'], weights=x['scaled_sci'])).reset_index()
+        new_data.rename(columns={0:'Average_distance_of_friendships'}, inplace=True)
+        
         avg_median_std_distance = sci_dataset.groupby('user_loc').agg(Mean_dist_to_SCI=('distance', np.mean),
                                                                       Median_dist_to_SCI=('distance', np.median),
                                                                       Std_dist_to_SCI=('distance', np.std),
                                                                       Total_dist_to_SCI=('distance', np.sum)
                                                                       ).reset_index()
+        avg_median_std_distance = avg_median_std_distance.merge(new_data, on='user_loc', how='inner')
+        print(avg_median_std_distance.columns)
         logger.info("Distance computations completed!")
         return avg_median_std_distance
 
@@ -133,7 +150,7 @@ class SCI_Indices_Calculator:
                                                                        Std_friendship=('scaled_sci', np.std),
                                                                        Total_friendship=(
                                                                            'scaled_sci', np.sum)).reset_index()
-        logger.info("Freindhip share calculation completed !")
+        logger.info("Friendship share calculation completed !")
         return agg_destination_sci_data
 
     @staticmethod
@@ -234,6 +251,7 @@ class SCI_Indices_Calculator:
 
         # merge all sci related features for only African Countries
         distance_between_sci = self.compute_distance_indices(gadm1_dataset[['GID_1', 'geometry']], sci_dataset)
+        print(distance_between_sci.columns.tolist())
         avg_median_std_sci = self.calculate_avg_median_std_SCI(sci_dataset, lmic_gid1)
         regional_ratios = self.calculate_regional_ratios(sci_dataset, agg_sci_from_region_to_africa,
                                                          agg_sci_from_region_to_all_sci)
@@ -247,7 +265,7 @@ class SCI_Indices_Calculator:
                                      'Std_SCI_with_Self', 'SCI', 'Mean_SCI_without_Self', 'Median_SCI_without_Self',
                                      'Std_SCI_without_Self', 'Mean_dist_to_SCI', 'Median_dist_to_SCI',
                                      'Std_dist_to_SCI', 'Total_dist_to_SCI', 'Ratio_selfloop_to_country',
-                                     'Ratio_selfloop_to_africa', 'Ratio_selfloop_to_all_sci']]
+                                     'Ratio_selfloop_to_africa', 'Ratio_selfloop_to_all_sci','Average_distance_of_friendships']]
         quantiles_hi = self.calculate_SCI_share_based_HI_quantiles(health_index_data, sci_dataset, lmic_gid1)
         sci_features = sci_features.merge(quantiles_hi, on='user_loc', how='inner')
         save_path = "external_dataset/sci_indices.csv"
