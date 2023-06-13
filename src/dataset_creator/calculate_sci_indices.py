@@ -94,6 +94,8 @@ class SCI_Indices_Calculator:
         sci_dataset['distance'] = sci_dataset['distance'].abs()
 
         all_user_locs = sci_dataset['user_loc'].unique().tolist()
+        
+        #TODO refactor this (Theo)
         min_values_dict = {}
         for user_loc_ in all_user_locs:
             min_values_dict[user_loc_] = min(sci_dataset[(sci_dataset['user_loc'] == user_loc_) & sci_dataset['distance'] > 0]['distance'])
