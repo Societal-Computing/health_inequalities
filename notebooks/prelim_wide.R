@@ -38,7 +38,7 @@ afr <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_
 ### Define targets
 dhs_targets <- dhs %>% 
   select(rh_anc_pv:we_num_justifydv) %>% 
-  select(starts_with(c('rh', 'ch', 'nt'))) %>% 
+  select(starts_with(c('rh', 'ch', 'nt', 'fp'))) %>% 
   names()
 
 ### Define controls
@@ -97,7 +97,11 @@ wp_controls <- c(
   'Mean_distance_to_major_rd_intersection',
   'Std_distance_to_major_rd_intersection',
   'Mean_distance_to_major_rd',
-  'Std_distance_to_major_rd')
+  'Std_distance_to_major_rd',
+  "Mean_distance_to_inland_water",
+  "Std_distance_to_inland_water",
+  "Mean_built_settlement_growth",
+  "Std_built_settlement_growth")
 
 fb_controls <- c('fb_rwi_mean',
                  'fb_rwi_mean_pop_wght',
