@@ -1,0 +1,119 @@
+ This file provides some description on the indicator names
+ 
+ 
+ 0) Geographic identifier (there are also higher ones available)
+ GID_1: Geographic identifier from the Meta's SCI
+ 
+ 1) DHS-based health outcomes
+"rh_anc_pv": Share of interviewed women that received assistance
+"rh_anc_pvskill": Share of interviewed women that received professional assistance
+"rh_anc_numvs": Share of interviewed women with 2+ visits
+"rh_anc_4vs": Share of interviewed women with  4+ visits
+"rh_anc_moprg": Share of interviewed women with ANC before 4 months of pregancy
+"nt_bf_ever": Share of children ever breastfed - last-born in the past 2 years
+"nt_bf_start_1hr": Share of children started breastfeeding within one hour of birth - last-born in the past 2 years
+"nt_bf_start_1day": Share of children started breastfeeding within one day of birth - last-born in the past 2 years
+"nt_bf_prelac": Share of children received a prelacteal feed - last-born in the past 2 years ever breast fed
+"nt_bottle": Share of children drank from a bottle with a nipple yesterday - under 2 years
+"ch_allvac_either": Share of one-to-two year-old children with all basic vaccinations
+"ch_novac_either": Share of one-to-two year-old children with no basic vaccinations
+"fp_know_any": Share of respondents knowing any contraceptive method
+"fp_know_mod": Share of respondents knowing any modern method
+"fp_know_trad": Share of respondents knowing any traditional method
+"fp_message_noneof4": Share of respondents not exposed to family planning messages on any of these four media sources: TV, radio, newspaper, mobile phone
+"fp_message_noneof3": Share of respondents not exposed to family planning messages on any of these four media sources: TV, radio, newspaper
+"dv_sex_12m": Share of respondents that experienced sexual violence in the past 12 months
+"dv_phy_12m": Share of respondents that experienced physical violence in the past 12 months
+"rh_prob_permit": Share of respondents that state that the problem accessing health care is: permission to go
+"rh_prob_money": Share of respondents that state that the problem accessing health care is: getting money
+"rh_prob_dist": Share of respondents that state that the problem accessing health care is: distance to facility
+"rh_prob_alone": Share of respondents that state that the problem accessing health care is: not wanting to go alone
+"rh_prob_minone": Share of respondents that state that have at least one of the above-metioned problems accessing health care
+"we_decide_all": Share of interviewess that decide on all three: health, purchases (, and visits) either alone or jointly with partner"
+"we_decide_none": Share of interviewess that do not decide on the three: health, purchases (, and visits) neither alone nor jointly with partner"
+"we_dvjustify_burn": Share of interviewess that agree that husband is justified in hitting or beating his wife if she burns food
+"we_dvjustify_argue": Share of interviewess that agree that husband is justified in hitting or beating his wife if she argues with him
+"we_dvjustify_goout": Share of interviewess that agree that husband is justified in hitting or beating his wife if she goes out without telling him
+"we_dvjustify_neglect": Share of interviewess that agree that husband is justified in hitting or beating his wife if she neglects the children
+"we_dvjustify_refusesex": Share of interviewess that agree that husband is justified in hitting or beating his wife if she refuses to have sexual intercourse with him
+"we_dvjustify_onereas": Share of interviewess that agree that husband is justified in hitting or beating his wife for at least one of the above reasons
+"we_justify_refusesex": Share of interviewess that believe a woman is justified to refuse sex with her husband if she knows he's having sex with other women
+"we_justify_cond": Share of interviewess that believe a woman is justified in asking that her husband to use a condom if she knows that he has an STI
+"we_num_justifydv": 
+
+2) DHS-based control variablesdhs_controls
+'poorest': Share of households classified poorest by DHS wealth index quintile
+'poorer': Share of households classified poorer by DHS wealth index quintile
+'middle': Share of households classified middle by DHS wealth index quintile
+'richer': Share of households classified richer by DHS wealth index quintile
+'richest': Share of households classified richest by DHS wealth index quintile
+'female': Share of respondents declared as female
+'secondary_or_higher': Share of respondents that has an educational level of secondary or higher 
+'has_mobile_phone_yes': Share of respondents that own a cell phone
+'rural': Share of households living in rural areas
+"X15.19": Share of respondents in the respective age group
+"X20.24": Share of respondents in the respective age group
+"X25.29": Share of respondents in the respective age group
+"X30.34": Share of respondents in the respective age group
+"X35.39": Share of respondents in the respective age group
+"X40.44": Share of respondents in the respective age group
+"X45.49": Share of respondents in the respective age group
+
+3) Social connectedness features
+
+According to the SCI methodology, the "raw" SCI is defined as the number of friendship links between two regions divided by the product of the regions' respective user counts. The methodology states that the SCI can be interpreted as "the relative probability of a Facebook friendship link between a given Facebook user in location i and a user in location j". When we talk in the following of "friendship", we refer to this definition.
+
+To transform pairwise connections (user_loc <-> fr_loc) to a cross-sectional setting, we aggregate for each user_loc across all fr_loc the "raw" SCI in different ways.
+
+'Mean_dist_to_SCI': Average distance to other regions in the sample (based on their centroids)
+'Median_dist_to_SCI': Average distance to other regions in the sample (based on their centroids)
+'Std_dist_to_SCI': Clustering measure of distance to other regions in the sample (based on their centroids)
+'Total_dist_to_SCI': Sum of distances to other regions in the sample (based on their centroids)
+'Ratio_selfloop_to_country': Share of local friendships within the same country
+'Ratio_selfloop_to_africa': Share of local friendships that stay within Africa
+'Ratio_selfloop_to_all_sci': Share of local friendships of all friendships
+'Average_distance_of_friendships': Average distance of friendships
+'Mean_SCI_without_Self': Average friendships with other regions
+'Median_SCI_without_Self': Average friendships with other regions
+'Std_SCI_without_Self': Clustering measure for friendships with other regions
+'Mean_SCI_with_Self': Average friendships across all regions
+'Median_SCI_with_Self': Average friendships across all regions
+'Std_SCI_with_Self': Clustering measure for friendships across all regions
+'Mean_friendship': Average friendship links per FB users
+'Median_friendship': Average friendship links per FB users
+'Std_friendship': Clustering measure for friendship links per FB user
+'Total_friendship': Sum of friendships per FB user 
+'Ratio_SCI_low_hi_africa': Share of friendships to regions with a low health index
+'Ratio_SCI_middle_hi_africa': Share of friendships to regions with a medium health index
+'Ratio_SCI_high_hi_africa': Share of friendships to regions with a high health index
+
+4) Control variable from Human Development Index
+'HDI': Subnational Human Development Index as provided by the Global Data Lab
+
+5) Control variables from Worldpop
+'Mean_of_Night_Light': Night-time light intensity (aggregated from grid)
+'Std_of_Night_Light': Night-time light intensity (aggregated from grid)
+'Mean_distance_to_major_rd_intersection': Distance to major road intersection (aggregated from grid)
+'Std_distance_to_major_rd_intersection': Distance to major road intersection (aggregated from grid)
+'Mean_distance_to_major_rd': Distance to major road (aggregated from grid)
+'Std_distance_to_major_rd': Distance to major road (aggregated from grid)
+"Mean_distance_to_inland_water": Distance to inland water (aggregated from grid)
+"Std_distance_to_inland_water": Distance to inland water (aggregated from grid)
+"Mean_built_settlement_growth": Average space used by buildings (aggregated from grid)
+"Std_built_settlement_growth": Average space used by buildings (aggregated from grid)
+
+6) Control variables from Facebook
+'fb_rwi_mean': Average of Meta's Relative Wealth Index
+'fb_rwi_mean_pop_wght': Average of Meta's Relative Wealth Index (population-weighted)
+'FB_pntr_15to49_female': Facebook penetration rate among females
+'FB_pntr_15to49_all': Facebook penetration rate
+
+7) Control variables from Afrobarometer
+'trpar': Share of respondents that trust the parliament/national assembly
+'trtax': Share of respondents that trust the tax department
+'trgov': Share of respondents that trust the their elected local government council
+'trlaw': Share of respondents that trust the courts of law
+'trgen': Share of respondents that trust most people
+'trrel': Share of respondents that trust relatives
+'trnei': Share of respondents that trust neighbors
+'tracq': Share of respondents that trust other people they know
