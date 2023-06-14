@@ -38,6 +38,10 @@ dhs <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_
 afr <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/afrobarometer.csv') %>% 
   distinct(GID_1, .keep_all = T)
 
+# Raw SCI
+sci_raw <- read.csv("/Users/tillkoebe/Documents/Data/SCI/sci_gadm1.tsv", sep = "\t") %>% 
+  filter(user_loc %in% unique(dhs$GID_1),
+         fr_loc %in% unique(dhs$GID_1))
 
 # Data preparation --------------------------------------------------------
 
@@ -64,12 +68,7 @@ dhs_controls <- c(
   "X30.34",
   "X35.39",
   "X40.44",
-  "X45.49"    
-  # 'rel_minor',
-  # 'lang_minor'
-  # 'muslim',
-  # 'protestant',
-  # 'catholic'
+  "X45.49"
 )
 
 sci_controls <- c('Mean_dist_to_SCI', # Average distance of friendships
@@ -103,7 +102,11 @@ wp_controls <- c(
   'Mean_distance_to_major_rd_intersection',
   'Std_distance_to_major_rd_intersection',
   'Mean_distance_to_major_rd',
-  'Std_distance_to_major_rd')
+  'Std_distance_to_major_rd',
+  "Mean_distance_to_inland_water",
+  "Std_distance_to_inland_water",
+  "Mean_built_settlement_growth",
+  "Std_built_settlement_growth")
 
 fb_controls <- c('fb_rwi_mean',
                  'fb_rwi_mean_pop_wght',
@@ -231,6 +234,7 @@ plot(resid(fit_ch_allvac_either))
 
 # Map plot dependent variable
 
+
 # Map plot residuals
 
 
@@ -240,7 +244,8 @@ plot(resid(fit_ch_allvac_either))
 geodat <- afr_dat %>% 
   left_join(temp,
             by = 'GID_1') %>% 
-  drop_na(all_of(dhs_targets))
+  drop_na(all_of(dhs_targets)) %>%
+  st_make_valid()
 
 set.ZeroPolicyOption(TRUE)
 
