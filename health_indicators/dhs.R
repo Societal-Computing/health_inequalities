@@ -340,6 +340,7 @@ for(i in country_ls){
                         'v013', # age group
                         'v025', # urban/rural
                         'v045b', # interview language
+                        'v106', # highest educational level
                         'v130', # religion
                         'v169a', # mobile phone ownership
                         'v190') # wealth index in quintiles
@@ -392,13 +393,13 @@ for(i in country_ls){
       
       Control <- IRdata %>% 
         mutate(sex = 'female') %>% 
-        select(control_vars) %>% 
+        select(all_of(control_vars)) %>% 
         bind_rows(
           MRdata %>% 
             select(paste0("m", control_vars[!control_vars == 'sex'])) %>% 
             rename_with(., ~ sub(".", "", .x)) %>% 
             mutate(sex = 'male') %>% 
-            select(control_vars)
+            select(all_of(control_vars))
         ) %>% 
         set_value_labels(v190 = c("poorest" = 1, # Some surveys have messed up labelling
                                   "poorer" = 2,
@@ -408,18 +409,23 @@ for(i in country_ls){
         mutate(across(control_vars[!control_vars == 'v001'], as_factor),
                across(where(is.factor), as.character)
         ) %>% 
-        left_join(GEOdata, 
-                  by = join_by(v001 == DHSCLUST)) %>% 
         mutate(maj_lang = 'lang_minor', # determine majority language
                maj_lang = replace(maj_lang, 
                                   is.na(v045b), 'lang_NA'),
                maj_lang = replace(maj_lang, 
-                                  v045b == names(which.max(table(v045b))), 'lang_major')) %>% 
-        mutate(maj_rel = 'rel_minor', # determine majority religion
+                                  v045b == names(which.max(table(v045b))), 'lang_major'),
+               maj_rel = 'rel_minor', # determine majority religion
                maj_rel = replace(maj_rel, 
                                  is.na(v130), 'rel_NA'),
                maj_rel = replace(maj_rel, 
-                                 v130 == names(which.max(table(v130))), 'rel_major')) %>% 
+                                 v130 == names(which.max(table(v130))), 'rel_major'),
+               v106 = case_when(
+                 v106 %in% c('secondary', 'higher') ~ 'secondary_or_higher',
+                 v106 %in% c('no education', 'primary') ~ 'primary_or_no',
+                 is.na(v106) ~ NA
+               )) %>% 
+        left_join(GEOdata, 
+                  by = join_by(v001 == DHSCLUST)) %>% 
         select(-v001, -v045b, -geometry)
       
       control_vars <- c(control_vars[!control_vars == 'v045b'],
