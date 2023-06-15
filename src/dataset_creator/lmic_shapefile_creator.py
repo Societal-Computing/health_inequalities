@@ -49,14 +49,14 @@ class Data_Preprocessing_LMIC:
         logger.info(" all shapefiles combined for single level")
         return gpd.GeoDataFrame(combined_shapefile, crs=cls.CRS)
 
-    @staticmethod
-    def correction_of_GID_for_special_case(row: pd.Series):
-        if row['GID_1'][:3] == 'COM':
-            return 'COM'
-        elif row['GID_1'][:3] == 'CPV':
-            return 'CPV'
-        else:
-            return row['GID_1']
+    # @staticmethod
+    # def correction_of_GID_for_special_case(row: pd.Series):
+    #     if row['GID_1'][:3] == 'COM':
+    #         return 'COM'
+    #     elif row['GID_1'][:3] == 'CPV':
+    #         return 'CPV'
+    #     else:
+    #         return row['GID_1']
 
     @staticmethod
     def correct_HASC_1(row: pd.Series):
@@ -96,9 +96,10 @@ class Data_Preprocessing_LMIC:
         gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.GID_1.apply(lambda x:
                                                                    x.replace('.', '').replace('_1', ''))
         # change GID_1 of Comoros and Cape Verde
-        gadm1_dhs_dataset['GID_1_1'] = gadm1_dhs_dataset['GID_1']
+        #gadm1_dhs_dataset['GID_1_1'] = gadm1_dhs_dataset['GID_1']
         gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.apply(lambda x: self.correction_of_GID_for_special_case(x),
-                                                             axis=1)
+                                                              axis=1)
+        
 
         # resolving issues with HASC_1 naming
         gadm1_dhs_dataset['HASC_1'] = gadm1_dhs_dataset.apply(lambda row: self.correct_HASC_1(row), axis=1)
