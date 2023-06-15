@@ -62,15 +62,17 @@ class Dataset_Creator_World_Covariates:
         out_data = self.calculate_single_covariant_index(out_data, config_distance_to_mjr_rd_shapefiles,
                                                          source_base_url, "Mean_distance_to_major_rd",
                                                          "Std_distance_to_major_rd")
+        
         config_distance_to_inland_water = config['distance_to_inland_water']
         out_data = self.calculate_single_covariant_index(out_data, config_distance_to_inland_water,
                                                     source_base_url, "Mean_distance_to_inland_water",
                                                     "Std_distance_to_inland_water")
+        
         config_built_settlement_growth = config['built_settlement_growth']
-
         out_data = self.calculate_single_covariant_index(out_data, config_built_settlement_growth,
                                                     config_built_settlement_growth['wpop_source_base_url'], "Mean_built_settlement_growth",
                                                     "Std_built_settlement_growth")
+        
         config_population_density = config['population_density']
         # out_data = self.calculate_single_covariant_index(out_data, config_population_density,
         #                                             config_population_density['wpop_source_base_url'], "Mean_pop_density",
