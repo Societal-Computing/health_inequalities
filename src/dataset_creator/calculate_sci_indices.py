@@ -16,6 +16,8 @@ from utils.helper_functions import worksheet_reader
 
 class SCI_Indices_Calculator:
     CRS = "EPSG:4326"
+    CRS_4_DISTANCE = "EPSG:3857"
+
     QUANTILES = ["Ratio_SCI_low_hi_africa", "Ratio_SCI_middle_hi_africa", "Ratio_SCI_high_hi_africa"]
 
     def __init__(self, sci_data_path: str, all_shapefile_path: str,fb_dataset_path: str, health_index_dataset_path: str):
@@ -78,9 +80,9 @@ class SCI_Indices_Calculator:
         logger.info("Computing distance indices ....")
         sci_dataset = sci_dataset.copy()
         geometries = geometries.copy()
-        geometries = geometries.to_crs(cls.CRS)
+        geometries = geometries.to_crs(cls.CRS_4_DISTANCE)
         geometries['Centroids'] = geometries.geometry.centroid
-        geometries['Centroids'] = geometries['Centroids'].to_crs(cls.CRS)
+        geometries['Centroids'] = geometries['Centroids'].to_crs(cls.CRS_4_DISTANCE)
         sci_dataset = sci_dataset.merge(geometries, left_on='user_loc', right_on='GID_1', how='inner')
         sci_dataset = sci_dataset.rename(columns={"Centroids": "user_loc_centroid"})
         sci_dataset.drop(columns=["GID_1", "geometry"], inplace=True)
@@ -90,7 +92,7 @@ class SCI_Indices_Calculator:
         sci_dataset.drop(columns=["GID_1"], inplace=True)
         sci_dataset = gpd.GeoDataFrame(sci_dataset)
         sci_dataset['distance'] = sci_dataset['user_loc_centroid'].distance(sci_dataset['fr_loc_centroid'])
-        sci_dataset = sci_dataset.to_crs(cls.CRS)
+        sci_dataset = sci_dataset.to_crs(cls.CRS_4_DISTANCE)
         sci_dataset['distance'] = sci_dataset['distance'].abs()
 
         all_user_locs = sci_dataset['user_loc'].unique().tolist()
@@ -108,15 +110,20 @@ class SCI_Indices_Calculator:
         sci_dataset.drop(columns=["fr_loc_centroid", "user_loc_centroid", "geometry"], inplace=True)
         
         new_data = sci_dataset.groupby(['user_loc']).apply(lambda x: np.average(x['distance'], weights=x['scaled_sci'])).reset_index()
-        new_data.rename(columns={0:'Average_distance_of_friendships'}, inplace=True)
+        new_data.rename(columns={0:'Average_distance_of_friendships_km'}, inplace=True)
         
-        avg_median_std_distance = sci_dataset.groupby('user_loc').agg(Mean_dist_to_SCI=('distance', np.mean),
-                                                                      Median_dist_to_SCI=('distance', np.median),
-                                                                      Std_dist_to_SCI=('distance', np.std),
-                                                                      Total_dist_to_SCI=('distance', np.sum)
+        avg_median_std_distance = sci_dataset.groupby('user_loc').agg(Mean_dist_to_SCI_km=('distance', np.mean),
+                                                                      Median_dist_to_SCI_km=('distance', np.median),
+                                                                      Std_dist_to_SCI_km=('distance', np.std),
+                                                                      Total_dist_to_SCI_km=('distance', np.sum)
                                                                       ).reset_index()
         avg_median_std_distance = avg_median_std_distance.merge(new_data, on='user_loc', how='inner')
-        print(avg_median_std_distance.columns)
+        # converting EPSG:3856 distances to km by dividing by 1000
+        avg_median_std_distance["Mean_dist_to_SCI_km"] = avg_median_std_distance["Mean_dist_to_SCI_km"]/1000
+        avg_median_std_distance["Median_dist_to_SCI_km"] = avg_median_std_distance["Median_dist_to_SCI_km"]/1000
+        avg_median_std_distance["Std_dist_to_SCI_km"] = avg_median_std_distance["Std_dist_to_SCI_km"]/1000
+        avg_median_std_distance["Total_dist_to_SCI_km"] = avg_median_std_distance["Total_dist_to_SCI_km"]/1000
+        avg_median_std_distance["Average_distance_of_friendships_km"] = avg_median_std_distance["Average_distance_of_friendships_km"]/1000
         logger.info("Distance computations completed!")
         return avg_median_std_distance
 
@@ -265,9 +272,9 @@ class SCI_Indices_Calculator:
         sci_features = sci_features[['user_loc', 'Mean_friendship', 'Median_friendship', 'Std_friendship',
                                      'Total_friendship', 'Mean_SCI_with_Self', 'Median_SCI_with_Self',
                                      'Std_SCI_with_Self', 'SCI', 'Mean_SCI_without_Self', 'Median_SCI_without_Self',
-                                     'Std_SCI_without_Self', 'Mean_dist_to_SCI', 'Median_dist_to_SCI',
-                                     'Std_dist_to_SCI', 'Total_dist_to_SCI', 'Ratio_selfloop_to_country',
-                                     'Ratio_selfloop_to_africa', 'Ratio_selfloop_to_all_sci','Average_distance_of_friendships']]
+                                     'Std_SCI_without_Self', 'Mean_dist_to_SCI_km', 'Median_dist_to_SCI_km',
+                                     'Std_dist_to_SCI_km', 'Total_dist_to_SCI_km', 'Ratio_selfloop_to_country',
+                                     'Ratio_selfloop_to_africa', 'Ratio_selfloop_to_all_sci','Average_distance_of_friendships_km']]
         quantiles_hi = self.calculate_SCI_share_based_HI_quantiles(health_index_data, sci_dataset, lmic_gid1)
         sci_features = sci_features.merge(quantiles_hi, on='user_loc', how='inner')
         save_path = "external_dataset/sci_indices.csv"
