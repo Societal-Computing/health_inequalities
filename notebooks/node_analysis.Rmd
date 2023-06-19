@@ -1,0 +1,690 @@
+---
+title: "Node analysis of social connectedness and health inequalities"
+output:
+  html_document:
+    df_print: paged
+---
+
+In this notebook, we run the analysis (modelling + diagnostics) for linking social connectedness to health outcomes.
+
+### Relevant libraries
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)    # Data wrangling
+library(sf)           # Spatial analysis
+library(caret)        # For machine learning and preprocessing
+library(spdep)        # For spatial analysis
+library(spatialreg)   # For spatial regressions
+library(olsrr)        # For OLS residual diagnostics
+library(lme4)         # For random effects models
+library(lmerTest)     # For approximated p-values in mixed models
+library(ggplot2)      # Visualizations
+
+library(sjPlot)       # for tab_model function
+
+select <- dplyr::select
+```
+
+### Relevant data
+
+```{r}
+# Map data
+afr_dat <- st_read(dsn = "/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_geometries.gpkg") %>% 
+  st_make_valid() %>% 
+  st_transform(4326)
+
+# Social Connectedness Index
+sci <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/sci_indices.csv") %>% 
+  distinct(user_loc, .keep_all = T)
+
+# Worldpop covariates
+wp <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/wp.csv") %>% 
+  distinct(GID_1, .keep_all = T)
+
+# Human Development Index
+hdi <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/hdi.csv") %>% 
+  distinct(GID_1, .keep_all = T)
+
+# Facebook covariates
+fb <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/fb.csv") %>% 
+  distinct(GID_1, .keep_all = T)
+
+# DHS data
+dhs <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health.csv')
+
+# Afrobarometer
+afr <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/afrobarometer.csv') %>% 
+  distinct(GID_1, .keep_all = T)
+
+# Raw SCI
+sci_raw <- read.csv("/Users/tillkoebe/Documents/Data/SCI/sci_gadm1.tsv", sep = "\t") %>% 
+  filter(user_loc %in% unique(dhs$GID_1),
+         fr_loc %in% unique(dhs$GID_1))
+```
+### Defining targets and controls
+
+Let's define our targets and controls:
+```{r}
+### Define targets
+dhs_targets <- dhs %>% 
+  select(rh_anc_pv:we_num_justifydv) %>% 
+  select(starts_with(c('rh', 'ch', 'nt', 'fp'))) %>% 
+  select(-fp_message_noneof4) %>% 
+  names()
+
+### Define controls
+dhs_controls <- c(
+  'poorest',
+  'poorer',
+  'middle',
+  'richer',
+  'richest',
+  'female',
+  'secondary_or_higher',
+  'has_mobile_phone_yes',
+  'rural',
+  "X.0.15.",
+  "X.15.20.",
+  "X.20.25.",
+  "X.25.30.",
+  "X.30.35.",
+  "X.35.40.",
+  "X.40.45.",
+  "X.45.50.",
+  "X.50.inf." 
+)
+
+sci_controls <- c('Mean_dist_to_SCI', # Average distance of friendships
+                  'Median_dist_to_SCI', # Average distance of friendships
+                  'Std_dist_to_SCI', # Clustering measure of friendships across distances
+                  'Total_dist_to_SCI', # Total distance of friendships
+                  'Ratio_selfloop_to_country', # Share of local friendships within the same country
+                  'Ratio_selfloop_to_africa', # Share of local friendships that stay within Africa
+                  'Ratio_selfloop_to_all_sci', # Share of local friendships of all friendships
+                  'Average_distance_of_friendships', 
+                  'Mean_SCI_without_Self', # Average probability of friendships with other regions
+                  'Median_SCI_without_Self', # Average probability of friendships with other regions
+                  'Std_SCI_without_Self', # Clustering measure for the probability of friendships with other regions
+                  'Mean_SCI_with_Self', # Average probability of friendships across all regions
+                  'Median_SCI_with_Self', # Average probability of friendships across all regions
+                  'Std_SCI_with_Self', # Average probability of friendships across all regions
+                  'Mean_friendship', # Average friendships per FB users
+                  'Median_friendship', # Average friendships per FB users
+                  'Std_friendship', # Clustering measure for friendships per FB user
+                  'Total_friendship', # Sum of friendships per FB user 
+                  'Ratio_SCI_low_hi_africa', # Share of friendships to regions with a low health index
+                  'Ratio_SCI_middle_hi_africa', # Share of friendships to regions with a medium health index
+                  'Ratio_SCI_high_hi_africa' # Share of friendships to regions with a high health index
+)
+
+hdi_controls <- c('HDI')
+
+wp_controls <- c(
+  'Mean_of_Night_Light',
+  'Std_of_Night_Light',
+  'Mean_distance_to_major_rd_intersection',
+  'Std_distance_to_major_rd_intersection',
+  'Mean_distance_to_major_rd',
+  'Std_distance_to_major_rd',
+  "Mean_distance_to_inland_water",
+  "Std_distance_to_inland_water",
+  "Mean_built_settlement_growth",
+  "Std_built_settlement_growth")
+
+fb_controls <- c('fb_rwi_mean',
+                 'fb_rwi_mean_pop_wght',
+                 'FB_pntr_15to49_female',
+                 'FB_pntr_15to49_all')
+
+afr_controls <- c('trpar',
+                  'trtax',
+                  'trgov',
+                  'trlaw',
+                  'trgen',
+                  'trrel',
+                  'trnei',
+                  'tracq')
+```
+
+
+
+
+We then merge datasets:
+```{r}
+dat <- dhs %>% 
+  select(GID_1,
+         all_of(dhs_targets),
+         all_of(dhs_controls)) %>% 
+  left_join(sci %>% 
+              select(GID_1 = user_loc,
+                     all_of(sci_controls)),
+            by = 'GID_1') %>% 
+  left_join(hdi %>% 
+              select(GID_1,
+                     all_of(hdi_controls)),
+            by = 'GID_1') %>% 
+  left_join(wp %>% 
+              drop_na(GID_1) %>% 
+              select(GID_1,
+                     all_of(wp_controls)),
+            by = 'GID_1') %>% 
+  left_join(fb %>% 
+              select(GID_1,
+                     all_of(fb_controls)),
+            by = 'GID_1') %>% 
+  left_join(afr %>% 
+              select(GID_1,
+                     all_of(afr_controls)),
+            by = 'GID_1') %>% 
+  mutate(iso3 = substr(GID_1, 1, 3))
+```
+
+Here an overview of the variables we now have in our dataset:
+```{r}
+dim(dat)
+names(dat)
+```
+
+A description of the variables can be found [here](https://drive.google.com/file/d/1vCgciS4_zMz6hs5SoRl8_5yxP5drHt1C/view?usp=sharing).
+
+### Summary statistics
+
+Let's look at summary statistics of a few handpicked 
+
+```{r}
+dat %>% 
+  select(all_of(dhs_targets)) %>% 
+  summary()
+```
+Seems that quite a few, especially of the most interesting variables imo (rh_anc_pv, rh_anc_pvskill, ch_allvac_either, ch_novac_either, fp_know_mod, nt_bf_ever, fp_message_noneof3) are quite skewed. Let's visualize as density plots.
+
+```{r}
+dat %>% 
+  select(ch_allvac_either, ch_novac_either, rh_anc_pv, rh_anc_pvskill, fp_know_mod, nt_bf_ever, fp_message_noneof3) %>% 
+  pivot_longer(cols = everything(),names_to = "indicator", values_to = "value") %>% 
+  ggplot(aes(x = value, fill = indicator)) + geom_density(alpha = 0.5)
+```
+
+Yes, they are. We may need to log-transform them. We add a small to the zeros to avoid -inf values.
+
+```{r}
+dat %>% 
+  mutate(across(all_of(dhs_targets), ~ ifelse(.x == 0, 0.001, .x)),
+         across(all_of(dhs_targets), ~ log(.x))) %>% 
+  select(ch_allvac_either, ch_novac_either, rh_anc_pv, rh_anc_pvskill, fp_know_mod, nt_bf_ever, fp_message_noneof3) %>% 
+  pivot_longer(cols = everything(),names_to = "indicator", values_to = "value") %>% 
+  ggplot(aes(x = value, fill = indicator)) + geom_density(alpha = 0.5)
+```
+
+That doesn't look much better. We have too many values close to zero. What about arcsine-transformation?
+
+```{r}
+dat %>% 
+  mutate(across(all_of(dhs_targets), ~ asin(sqrt(.x)))) %>% 
+  select(ch_allvac_either, ch_novac_either, rh_anc_pv, rh_anc_pvskill, fp_know_mod, nt_bf_ever, fp_message_noneof3) %>% 
+  pivot_longer(cols = everything(),names_to = "indicator", values_to = "value") %>% 
+  ggplot(aes(x = value, fill = indicator)) + geom_density(alpha = 0.5)
+```
+
+That looks much better. We may need to consider arcsine-transformation of our response variables then. But for now, let's look at the SCI indicators:
+
+```{r}
+dat %>% 
+  select(all_of(sci_controls)) %>% 
+  summary()
+```
+
+Some of the SCI has very high values (recall Meta multiplies the relative probability of friendship links between two regions by one billion). It makes sense to scale them. But let's first look at the other controls as well:
+
+For the DHS
+```{r}
+dat %>% 
+  select(all_of(dhs_controls)) %>% 
+  summary()
+```
+
+They all seem to be ok. For Worldpop covariates:
+```{r}
+dat %>% 
+  select(all_of(wp_controls)) %>% 
+  summary()
+```
+
+They all look ok, too, although one could consider scaling them as well. For Facebook covariates:
+```{r}
+dat %>% 
+  select(all_of(fb_controls)) %>% 
+  summary()
+```
+
+For Afrobarometer covariates
+```{r}
+dat %>% 
+  select(all_of(afr_controls)) %>% 
+  summary()
+```
+
+For HDI covariates
+```{r}
+dat %>% 
+  select(all_of(hdi_controls)) %>% 
+  summary()
+```
+### Preprocessing
+
+Before we start looking at spatial autocorrelation and other modelling outcomes, we need to prepare our final dataset.
+
+First, we center and scale SCI and WP features
+```{r}
+# Center and scale SCI variables
+dat <- dat %>% 
+  mutate(across(all_of(sci_controls), ~ scale(.x, scale = T)),
+         across(all_of(wp_controls), ~ scale(.x, scale = T))
+         )
+```
+
+Then, we select only the variables we need and drop nas.
+
+```{r}
+temp <- dat %>% 
+  select(GID_1,
+         all_of(dhs_targets),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         # afr_controls,
+         # hdi_controls, 
+         all_of(wp_controls),
+         iso3) %>% 
+  drop_na
+```
+
+Now, we can align the map to the final dataset.
+
+```{r}
+geodat <- afr_dat %>% 
+  left_join(temp,
+            by = 'GID_1') %>% 
+  drop_na(all_of(dhs_targets)) %>%
+  st_make_valid()
+```
+
+### Spatial autocorrelation in health outcomes
+
+In a first step, we look at spatial autocorrelation in the health outcomes of interest. Therefore, we create a grid of Moran's I values for different distances for each of our health outcome of interest. We define neighborhood via the distance, not via adjacency. Note, that the distance is currently measured in degrees, not in km. Also, note that we already do that for the arcsine-transformed variables, but there should make too much of a difference in terms of spatial autocorrelation.
+
+```{r}
+set.ZeroPolicyOption(TRUE)
+
+moran_dep <- data.frame()
+
+# loop through a distance vector d ranging from 50 to 2000 m
+dist_start = 1
+dist_stop = 50
+dist_step = 1
+
+for (d in seq(dist_start, dist_stop, dist_step)) {
+  
+  nb_w <- geodat %>% 
+    st_centroid() %>% 
+    dnearneigh(., d1 = 0, d2 = d, longlat = T) %>% 
+    nb2listw(., style = "W", zero.policy = TRUE)
+  
+  for(i in c('ch_allvac_either', 'ch_novac_either', 'rh_anc_pv', 'rh_anc_pvskill', 'fp_know_mod', 'nt_bf_ever', 'fp_message_noneof3')){
+    
+  moran_test <- moran.mc(asin(sqrt(temp[[i]])), nb_w, nsim = 999, zero.policy = TRUE)
+  
+  moran_dep <- data.frame(moran_I = moran_test$statistic,
+                             dep_var = i,
+                             distance = d) %>% 
+    bind_rows(moran_dep)
+
+  }
+  print(paste0(d, ' of ',dist_stop))
+}
+
+ggplot(moran_dep, aes(x = distance, y = moran_I, col=dep_var)) + 
+  geom_point() +
+  geom_line()
+
+```
+
+It seems that we have some strong spatial autocorrelation in the dependent variables. Let's go into the modelling and check if the autocorrelation also persists in the residuals of our models.
+
+### Modelling
+
+We first pick our controls based onnarrative/theory.
+
+```{r}
+controls <- c('Mean_SCI_without_Self +
+                Ratio_selfloop_to_africa + 
+                Ratio_SCI_low_hi_africa + 
+                Ratio_SCI_high_hi_africa +
+                poorest +
+                poorer +
+                female +
+                secondary_or_higher + 
+                has_mobile_phone_yes +
+                rural +
+                X.0.15. +
+                X.15.20. +
+                X.20.25. +
+                X.25.30. +
+                X.30.35. +
+                X.35.40. +
+                X.40.45. +
+                X.45.50. +
+                X.50.inf. +
+                Mean_of_Night_Light +
+                Mean_distance_to_major_rd +
+                FB_pntr_15to49_all +
+                female:has_mobile_phone_yes +
+                female:Mean_SCI_with_Self +
+                has_mobile_phone_yes:Mean_SCI_with_Self')
+```
+
+#### OLS
+
+Then, we run standard OLS for our health outcomes of interest.
+
+```{r}
+fit_ch_allvac_either <- lm(paste('ch_allvac_either ~',controls), temp)
+fit_ch_novac_either <- lm(paste('ch_novac_either ~',controls), temp)
+fit_rh_anc_pv <- lm(paste('rh_anc_pv ~',controls), temp)
+fit_rh_anc_pvskill <- lm(paste('rh_anc_pvskill ~',controls), temp)
+fit_fp_know_mod <- lm(paste('fp_know_mod ~',controls), temp)
+fit_fp_message_noneof3 <- lm(paste('fp_message_noneof3 ~',controls), temp)
+fit_nt_bf_ever <- lm(paste('nt_bf_ever ~',controls), temp)
+```
+
+Let's first have a look at the regression tables, before diving into deeper analysis.
+
+```{r}
+tab_model(fit_ch_allvac_either, fit_ch_novac_either, fit_rh_anc_pv, fit_rh_anc_pvskill, fit_fp_know_mod, fit_fp_message_noneof3, fit_nt_bf_ever)
+```
+
+### Arcsine transformation
+We do the same OLS on arcsine-transformed health outcomes.
+
+```{r}
+fit_ch_allvac_either_as <- lm(paste('asin(sqrt(ch_allvac_either)) ~',controls), temp)
+fit_ch_novac_either_as <- lm(paste('asin(sqrt(ch_novac_either)) ~',controls), temp)
+fit_rh_anc_pv_as <- lm(paste('asin(sqrt(rh_anc_pv)) ~',controls), temp)
+fit_rh_anc_pvskill_as <- lm(paste('asin(sqrt(rh_anc_pvskill)) ~',controls), temp)
+fit_fp_know_mod_as <- lm(paste('asin(sqrt(fp_know_mod)) ~',controls), temp)
+fit_fp_message_noneof3_as <- lm(paste('asin(sqrt(fp_message_noneof3)) ~',controls), temp)
+fit_nt_bf_ever_as <- lm(paste('asin(sqrt(nt_bf_ever)) ~',controls), temp)
+```
+
+#### Random Intercept
+
+As regional health outcomes might be driven by country-level health systems, we then add a random intercept for countries.
+
+```{r}
+fit_ch_allvac_either_ri <- lmer(paste('ch_allvac_either ~',controls,' + (1 | iso3)'), data = temp)
+fit_ch_novac_either_ri <- lmer(paste('ch_novac_either ~',controls,' + (1 | iso3)'), data = temp)
+fit_rh_anc_pv_ri <- lmer(paste('rh_anc_pv ~',controls,' + (1 | iso3)'), data = temp)
+fit_rh_anc_pvskill_ri <- lmer(paste('rh_anc_pvskill ~',controls,' + (1 | iso3)'), data = temp)
+fit_fp_know_mod_ri <- lmer(paste('fp_know_mod ~',controls,' + (1 | iso3)'), data = temp)
+fit_fp_message_noneof3_ri <- lmer(paste('fp_message_noneof3 ~',controls,' + (1 | iso3)'), data = temp)
+fit_nt_bf_ever_ri <- lmer(paste('nt_bf_ever ~',controls,' + (1 | iso3)'), data = temp)
+```
+
+And we also do it for the arcsine transformed model.
+
+```{r}
+fit_ch_allvac_either_as_ri <- lmer(paste('asin(sqrt(ch_allvac_either)) ~',controls,' + (1 | iso3)'), data = temp)
+fit_ch_novac_either_as_ri <- lmer(paste('asin(sqrt(ch_novac_either)) ~',controls,' + (1 | iso3)'), data = temp)
+fit_rh_anc_pv_as_ri <- lmer(paste('asin(sqrt(rh_anc_pv)) ~',controls,' + (1 | iso3)'), data = temp)
+fit_rh_anc_pvskill_as_ri <- lmer(paste('asin(sqrt(rh_anc_pvskill)) ~',controls,' + (1 | iso3)'), data = temp)
+fit_fp_know_mod_as_ri <- lmer(paste('asin(sqrt(fp_know_mod)) ~',controls,' + (1 | iso3)'), data = temp)
+fit_fp_message_noneof3_as_ri <- lmer(paste('asin(sqrt(fp_message_noneof3)) ~',controls,' + (1 | iso3)'), data = temp)
+fit_nt_bf_ever_as_ri <- lmer(paste('asin(sqrt(nt_bf_ever)) ~',controls,' + (1 | iso3)'), data = temp)
+```
+
+#### Spatial lag model
+
+Since have already started with different models, let's also take the spatial lag and the spatial error into account.
+
+```{r}
+fit_ch_allvac_either_sl <- lagsarlm(paste('ch_allvac_either ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_ch_novac_either_sl <- lagsarlm(paste('ch_novac_either ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_rh_anc_pv_sl <- lagsarlm(paste('rh_anc_pv ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_rh_anc_pvskill_sl <- lagsarlm(paste('rh_anc_pvskill ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_fp_know_mod_sl <- lagsarlm(paste('fp_know_mod ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_fp_message_noneof3_sl <- lagsarlm(paste('fp_message_noneof3 ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_nt_bf_ever_sl <- lagsarlm(paste('nt_bf_ever ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+```
+
+We do the same for the arcsine-transformed variable
+```{r}
+fit_ch_allvac_either_as_sl <- lagsarlm(paste('asin(sqrt(ch_allvac_either)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_ch_novac_either_as_sl <- lagsarlm(paste('asin(sqrt(ch_novac_either)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_rh_anc_pv_as_sl <- lagsarlm(paste('asin(sqrt(rh_anc_pv)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_rh_anc_pvskill_as_sl <- lagsarlm(paste('asin(sqrt(rh_anc_pvskill)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_fp_know_mod_as_sl <- lagsarlm(paste('asin(sqrt(fp_know_mod)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_fp_message_noneof3_as_sl <- lagsarlm(paste('asin(sqrt(fp_message_noneof3)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_nt_bf_ever_as_sl <- lagsarlm(paste('asin(sqrt(nt_bf_ever)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+```
+
+#### Spatial error model
+
+Since have already started with different models, let's also take the spatial lag and the spatial error into account.
+
+```{r}
+fit_ch_allvac_either_se <- errorsarlm(paste('ch_allvac_either ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_ch_novac_either_se <- errorsarlm(paste('ch_novac_either ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_rh_anc_pv_se <- errorsarlm(paste('rh_anc_pv ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_rh_anc_pvskill_se <- errorsarlm(paste('rh_anc_pvskill ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_fp_know_mod_se <- errorsarlm(paste('fp_know_mod ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_fp_message_noneof3_se <- errorsarlm(paste('fp_message_noneof3 ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_nt_bf_ever_se <- errorsarlm(paste('nt_bf_ever ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+```
+
+We do the same for the arcsine-transformed variable
+```{r}
+fit_ch_allvac_either_as_se <- errorsarlm(paste('asin(sqrt(ch_allvac_either)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_ch_novac_either_as_se <- errorsarlm(paste('asin(sqrt(ch_novac_either)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_rh_anc_pv_as_se <- errorsarlm(paste('asin(sqrt(rh_anc_pv)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_rh_anc_pvskill_as_se <- errorsarlm(paste('asin(sqrt(rh_anc_pvskill)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_fp_know_mod_as_se <- errorsarlm(paste('asin(sqrt(fp_know_mod)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_fp_message_noneof3_as_se <- errorsarlm(paste('asin(sqrt(fp_message_noneof3)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+fit_nt_bf_ever_as_se <- errorsarlm(paste('asin(sqrt(nt_bf_ever)) ~',controls), data = temp, listw = nb_w, zero.policy = TRUE)
+```
+
+Now we have eight different models specified. Let's compare them. We take one variable with rather strong spatial autocorrelation and one with lower spatial autocorrelation. Note, that the R^2 values for the random intercept model are not comparable to the other ones. The first value is the marginal R^2, which explains how much of this variance is attributed to the fixed effects alone . The second value is the conditional R^2, which is the amount of explained variance for the entire model.
+
+```{r}
+tab_model(fit_rh_anc_pv, fit_rh_anc_pv_as, fit_rh_anc_pv_ri, fit_rh_anc_pv_as_ri)
+```
+
+As the tab_model function doesn't work for spatial models, we look at their output separately.
+
+```{r}
+summary(fit_rh_anc_pv_sl)
+```
+
+```{r}
+summary(fit_rh_anc_pv_as_sl)
+```
+
+```{r}
+summary(fit_rh_anc_pv_se)
+```
+
+```{r}
+summary(fit_rh_anc_pv_as_se)
+```
+
+We see that in the model with comparably low spatial autocorrelation, a major chunk of the variation is explained by the random intercept (i.e. country id). In comparison, the spatial lag/error models don't provide much value added here. 
+
+Let's see if that's also the case for the case of high spatial autocorrelation.
+
+```{r}
+tab_model(fit_rh_anc_pvskill, fit_rh_anc_pvskill_as, fit_rh_anc_pvskill_ri, fit_rh_anc_pv_as_ri)
+```
+
+```{r}
+summary(fit_rh_anc_pv_as_sl)
+```
+
+```{r}
+summary(fit_rh_anc_pv_as_se)
+```
+
+As expected, here the part of variation explained by the random intercept is even higher. Let's look at the residuals now.
+
+```{r}
+par(mfrow = c(2, 4))
+plot(fitted(fit_rh_anc_pvskill), resid(fit_rh_anc_pvskill), col = 'green', main = 'OLS')
+plot(fitted(fit_rh_anc_pvskill_as), resid(fit_rh_anc_pvskill_as), col = 'blue', main = 'Arcsine')
+plot(fitted(fit_rh_anc_pvskill_ri), resid(fit_rh_anc_pvskill_ri), col = 'red', main = 'RI')
+plot(fitted(fit_rh_anc_pvskill_as_ri), resid(fit_rh_anc_pvskill_as_ri), col = 'black', main = 'Arcsine + RI')
+plot(fit_rh_anc_pvskill_sl$fitted.values, resid(fit_rh_anc_pvskill_sl), col = 'purple', main = 'Spatial Lag')
+plot(fit_rh_anc_pvskill_as_sl$fitted.values, resid(fit_rh_anc_pvskill_as_sl), col = 'orange', main = 'Arcsine + Spatial Lag')
+plot(fit_rh_anc_pvskill_se$fitted.values, resid(fit_rh_anc_pvskill_se), col = 'pink', main = 'Spatial Error')
+plot(fit_rh_anc_pvskill_as_se$fitted.values, resid(fit_rh_anc_pvskill_as_se), col = 'yellow', main = 'Arcsine + Spatial Error')
+```
+
+It seems that the random intercept largely reduces heterogeneity in the sample. We now look at the normality of the residuals via a qq-plot.
+
+```{r}
+par(mfrow = c(2, 4))
+hist(resid(fit_rh_anc_pvskill), 
+     main = "OLS", prob=TRUE, col = 'green')
+lines(density(resid(fit_rh_anc_pvskill)))
+hist(resid(fit_rh_anc_pvskill_as), 
+     main = "Arcsine", prob=TRUE, col = 'blue')
+lines(density(resid(fit_rh_anc_pvskill_as)))
+hist(resid(fit_rh_anc_pvskill_ri), 
+     main = "Random Intercept", prob=TRUE, col = 'red')
+lines(density(resid(fit_rh_anc_pvskill_ri)))
+hist(resid(fit_rh_anc_pvskill_as_ri), 
+     main = "Arcsine + Random Intercept", prob=TRUE, col = 'black')
+lines(density(resid(fit_rh_anc_pvskill_as_ri)))
+hist(resid(fit_rh_anc_pvskill_sl), 
+     main = "Spatial lag", prob=TRUE, col = 'purple')
+lines(density(resid(fit_rh_anc_pvskill_sl)))
+hist(resid(fit_rh_anc_pvskill_as_sl), 
+     main = "Arcsine + Spatial lag", prob=TRUE, col = 'orange')
+lines(density(resid(fit_rh_anc_pvskill_as_sl)))
+hist(resid(fit_rh_anc_pvskill_se), 
+     main = "Spatial error", prob=TRUE, col = 'pink')
+lines(density(residuals(fit_rh_anc_pvskill_se)))
+hist(resid(fit_rh_anc_pvskill_as_se), 
+     main = "Arcsine + Spatial error", prob=TRUE, col = 'yellow')
+lines(density(resid(fit_rh_anc_pvskill_as_se)))
+```
+
+It appears that the random intercept leads to most normally looking residuals. But are they normally distributed?
+
+```{r}
+ks.test(resid(fit_rh_anc_pvskill_as), "pnorm")
+ks.test(resid(fit_rh_anc_pvskill_as_ri), "pnorm")
+```
+Even the most "normal" looking residuals don't seem to be normally distributed, which we would agree to recalling the plot fitted vs. residuals from above.
+
+We now try to quantify the model fit by looking at the AICs of our different models.
+
+```{r}
+AIC(fit_rh_anc_pvskill, fit_rh_anc_pvskill_as, fit_rh_anc_pvskill_ri, fit_rh_anc_pvskill_as_ri, fit_rh_anc_pvskill_sl, fit_rh_anc_pvskill_as_sl, fit_rh_anc_pvskill_se, fit_rh_anc_pvskill_as_se)
+```
+
+Here, it appears that the arcsine transformation actually does not give a better model for a health outcome that is somehow skewed in its original distribution. Let's look at more extreme cases. This effect should be more pronounced for a health outcome with a more normal distribution.
+
+Heavily skewed:
+```{r}
+AIC(fit_fp_know_mod, fit_fp_know_mod_as, fit_fp_know_mod_ri, fit_fp_know_mod_as_ri, fit_fp_know_mod_sl, fit_fp_know_mod_as_sl, fit_fp_know_mod_se, fit_fp_know_mod_as_se)
+```
+
+Here, the difference is even more pronounced. In addition, the standard OLS appears to perform best, which is somehow odd.
+
+```{r}
+AIC(fit_fp_message_noneof3, fit_fp_message_noneof3_as, fit_fp_message_noneof3_ri, fit_fp_message_noneof3_as_ri, fit_fp_message_noneof3_sl, fit_fp_message_noneof3_as_sl, fit_fp_message_noneof3_se, fit_fp_message_noneof3_as_se)
+```
+
+Here, again the RI model seems to perform best, although again not the arcsine-transformed one. We now reiterate Moran's I for the residuals.
+
+### Spatial autocorrelation of residuals
+
+```{r}
+moran_res <- data.frame()
+
+# loop through a distance vector d ranging from 50 to 2000 m
+dist_start = 1
+dist_stop = 50
+dist_step = 1
+
+for (d in seq(dist_start, dist_stop, dist_step)) {
+  
+  nb_w <- geodat %>% 
+    st_centroid() %>% 
+    dnearneigh(., d1 = 0, d2 = d, longlat = T) %>% 
+    nb2listw(., style = "W", zero.policy = TRUE)
+  
+  for(filename in c('fit_rh_anc_pvskill', 'fit_rh_anc_pvskill_as', 'fit_rh_anc_pvskill_ri', 'fit_rh_anc_pvskill_as_ri', 'fit_rh_anc_pvskill_sl', 'fit_rh_anc_pvskill_as_sl',
+             'fit_rh_anc_pvskill_se', 'fit_rh_anc_pvskill_as_se')){
+  
+    i <- get(filename)
+
+  moran_test <- moran.mc(resid(i), nb_w, nsim = 999, zero.policy = TRUE)
+  
+  moran_res <- data.frame(moran_I = moran_test$statistic,
+                             dep_var = filename,
+                             distance = d) %>% 
+    bind_rows(moran_res)
+
+  }
+  print(paste0(d, ' of ',dist_stop))
+}
+
+ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) + 
+  geom_point() +
+  geom_line()
+
+```
+The random intercept seems to account for most of the spatial autocorrelation for that variable. But does it hold across variables?
+
+```{r}
+moran_res <- data.frame()
+
+# loop through a distance vector d ranging from 50 to 2000 m
+dist_start = 1
+dist_stop = 50
+dist_step = 1
+
+for (d in seq(dist_start, dist_stop, dist_step)) {
+  
+  nb_w <- geodat %>% 
+    st_centroid() %>% 
+    dnearneigh(., d1 = 0, d2 = d, longlat = T) %>% 
+    nb2listw(., style = "W", zero.policy = TRUE)
+  
+  for(filename in c('fit_ch_allvac_either_ri', 'fit_ch_novac_either_ri', 'fit_rh_anc_pv_ri', 'fit_rh_anc_pvskill_ri', 'fit_fp_know_mod_ri', 'fit_nt_bf_ever_ri', 'fit_fp_message_noneof3_ri')){
+  
+    i <- get(filename)
+
+  moran_test <- moran.mc(resid(i), nb_w, nsim = 999, zero.policy = TRUE)
+  
+  moran_res <- data.frame(moran_I = moran_test$statistic,
+                             dep_var = filename,
+                             distance = d) %>% 
+    bind_rows(moran_res)
+
+  }
+  print(paste0(d, ' of ',dist_stop))
+}
+
+ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) + 
+  geom_point() +
+  geom_line()
+
+```
+
+
+### Looking at effects
+
+
+
+
+
