@@ -335,102 +335,138 @@ for(i in country_ls){
       
       # Add control variables ---------------------------------------------------
       
-      control_vars <- c('sex', # gender,
-                        'v001', # cluster
-                        'v013', # age group
-                        'v025', # urban/rural
-                        'v045b', # interview language
-                        'v106', # highest educational level
-                        'v130', # religion
-                        'v169a', # mobile phone ownership
-                        'v190') # wealth index in quintiles
+      # control_vars <- c('sex', # gender #hv104
+      #                   'v001', # cluster #hv001
+      #                   'v013', # age group #hv105
+      #                   'v025', # urban/rural #hv025
+      #                   'v045b', # interview language #hv045b
+      #                   'v106', # highest educational level #hv122
+      #                   'v130', # religion
+      #                   'v169a', # mobile phone ownership #hv243a
+      #                   'v190') # wealth index in quintiles #hv270
       
-      if(is.null(IRdata$v045b)){
-        
-        IRdata <- IRdata %>% 
-          mutate(v045b = NA) 
-        
-        if(!is.null(IRdata$sinterv)){
-          IRdata <- IRdata %>% 
-            mutate(v045b = sinterv) 
-        }
-        if(!is.null(IRdata$slangint)){
-          IRdata <- IRdata %>% 
-            mutate(v045b = slangint) 
-        }
-        if(!is.null(IRdata$slang)){
-          IRdata <- IRdata %>% 
-            mutate(v045b = slang) 
-        }
-        if(!is.null(IRdata$slinterview)){
-          IRdata <- IRdata %>% 
-            mutate(v045b = slinterview)
-        }
-      }
+      control_vars <- c('v104', # gender #hv104
+                        'v001', # cluster #hv001
+                        'v105', # age #hv105
+                        'v025', # urban/rural #hv025
+                        # 'hv045b', # interview language #hv045b
+                        'v122', # highest educational level #hv122
+                        # 'v130', # religion
+                        'v243a', # mobile phone ownership #hv243a
+                        'v270') # wealth index in quintiles #hv270
       
-      if(is.null(MRdata$mv045b)){
-        
-        MRdata <- MRdata %>% 
-          mutate(mv045b = NA) 
-        
-        if(!is.null(MRdata$sminterv)){
-          MRdata <- MRdata %>% 
-            mutate(mv045b = sminterv) 
-        }
-        if(!is.null(IRdata$smlangint)){
-          MRdata <- MRdata %>% 
-            mutate(mv045b = smlangint) 
-        }
-        if(!is.null(MRdata$smlang)){
-          MRdata <- MRdata %>% 
-            mutate(mv045b = smlang) 
-        }
-        if(!is.null(MRdata$smlinterview)){
-          MRdata <- MRdata %>% 
-            mutate(mv045b = smlinterview) 
-        }
-      }
+      # if(is.null(IRdata$v045b)){
+      #   
+      #   IRdata <- IRdata %>% 
+      #     mutate(v045b = NA) 
+      #   
+      #   if(!is.null(IRdata$sinterv)){
+      #     IRdata <- IRdata %>% 
+      #       mutate(v045b = sinterv) 
+      #   }
+      #   if(!is.null(IRdata$slangint)){
+      #     IRdata <- IRdata %>% 
+      #       mutate(v045b = slangint) 
+      #   }
+      #   if(!is.null(IRdata$slang)){
+      #     IRdata <- IRdata %>% 
+      #       mutate(v045b = slang) 
+      #   }
+      #   if(!is.null(IRdata$slinterview)){
+      #     IRdata <- IRdata %>% 
+      #       mutate(v045b = slinterview)
+      #   }
+      # }
+      # 
+      # if(is.null(MRdata$mv045b)){
+      #   
+      #   MRdata <- MRdata %>% 
+      #     mutate(mv045b = NA) 
+      #   
+      #   if(!is.null(MRdata$sminterv)){
+      #     MRdata <- MRdata %>% 
+      #       mutate(mv045b = sminterv) 
+      #   }
+      #   if(!is.null(IRdata$smlangint)){
+      #     MRdata <- MRdata %>% 
+      #       mutate(mv045b = smlangint) 
+      #   }
+      #   if(!is.null(MRdata$smlang)){
+      #     MRdata <- MRdata %>% 
+      #       mutate(mv045b = smlang) 
+      #   }
+      #   if(!is.null(MRdata$smlinterview)){
+      #     MRdata <- MRdata %>% 
+      #       mutate(mv045b = smlinterview) 
+      #   }
+      # }
       
-      Control <- IRdata %>% 
-        mutate(sex = 'female') %>% 
-        select(all_of(control_vars)) %>% 
-        bind_rows(
-          MRdata %>% 
-            select(paste0("m", control_vars[!control_vars == 'sex'])) %>% 
-            rename_with(., ~ sub(".", "", .x)) %>% 
-            mutate(sex = 'male') %>% 
-            select(all_of(control_vars))
-        ) %>% 
-        set_value_labels(v190 = c("poorest" = 1, # Some surveys have messed up labelling
+      Control <- PRdata %>% 
+        select(paste0("h", control_vars)) %>% 
+        rename_with(., ~ sub(".", "", .x)) %>%
+        set_value_labels(v270 = c("poorest" = 1, # Some surveys have messed up labelling
                                   "poorer" = 2,
                                   "middle" = 3, 
                                   "richer" = 4,
-                                  "richest" = 5)) %>%
-        mutate(across(control_vars[!control_vars == 'v001'], as_factor),
-               across(where(is.factor), as.character)
-        ) %>% 
-        mutate(maj_lang = 'lang_minor', # determine majority language
-               maj_lang = replace(maj_lang, 
-                                  is.na(v045b), 'lang_NA'),
-               maj_lang = replace(maj_lang, 
-                                  v045b == names(which.max(table(v045b))), 'lang_major'),
-               maj_rel = 'rel_minor', # determine majority religion
-               maj_rel = replace(maj_rel, 
-                                 is.na(v130), 'rel_NA'),
-               maj_rel = replace(maj_rel, 
-                                 v130 == names(which.max(table(v130))), 'rel_major'),
-               v106 = case_when(
-                 v106 %in% c('secondary', 'higher') ~ 'secondary_or_higher',
-                 v106 %in% c('no education', 'primary') ~ 'primary_or_no',
-                 is.na(v106) ~ NA
-               )) %>% 
+                                  "richest" = 5)) %>% 
+        mutate(v105 = as.integer(as_factor(v105)),
+               v105 = replace(v105, v105 == 98, NA),
+               v105 = cut(v105, 
+                           breaks=c(0, 15, 20, 25, 30, 35, 40, 45, 50, Inf),
+                           include.lowest = FALSE, right = TRUE),
+               across(where(is.labelled), as_factor),
+               across(where(is.factor), as.character),
+               across(where(is.numeric), as.integer),
+               v122 = case_when(
+                 v122 %in% c('secondary', 'higher') ~ 'secondary_or_higher',
+                 v122 %in% c('no education', 'primary') ~ 'primary_or_no',
+                 is.na(v122) ~ NA)
+               ) %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
-        select(-v001, -v045b, -geometry)
+        select(-v001, -geometry)
+        
       
-      control_vars <- c(control_vars[!control_vars == 'v045b'],
-                        "maj_lang",
-                        "maj_rel")
+      # Control <- IRdata %>% 
+      #   mutate(sex = 'female') %>% 
+      #   select(all_of(control_vars)) %>% 
+      #   bind_rows(
+      #     MRdata %>% 
+      #       select(paste0("m", control_vars[!control_vars == 'sex'])) %>% 
+      #       rename_with(., ~ sub(".", "", .x)) %>% 
+      #       mutate(sex = 'male') %>% 
+      #       select(all_of(control_vars))
+      #   ) %>% 
+      #   set_value_labels(v190 = c("poorest" = 1, # Some surveys have messed up labelling
+      #                             "poorer" = 2,
+      #                             "middle" = 3, 
+      #                             "richer" = 4,
+      #                             "richest" = 5)) %>%
+      #   mutate(across(control_vars[!control_vars == 'v001'], as_factor),
+      #          across(where(is.factor), as.character)
+      #   ) %>% 
+      #   mutate(maj_lang = 'lang_minor', # determine majority language
+      #          maj_lang = replace(maj_lang, 
+      #                             is.na(v045b), 'lang_NA'),
+      #          maj_lang = replace(maj_lang, 
+      #                             v045b == names(which.max(table(v045b))), 'lang_major'),
+      #          maj_rel = 'rel_minor', # determine majority religion
+      #          maj_rel = replace(maj_rel, 
+      #                            is.na(v130), 'rel_NA'),
+      #          maj_rel = replace(maj_rel, 
+      #                            v130 == names(which.max(table(v130))), 'rel_major'),
+      #          v106 = case_when(
+      #            v106 %in% c('secondary', 'higher') ~ 'secondary_or_higher',
+      #            v106 %in% c('no education', 'primary') ~ 'primary_or_no',
+      #            is.na(v106) ~ NA
+      #          )) %>% 
+      #   left_join(GEOdata, 
+      #             by = join_by(v001 == DHSCLUST)) %>% 
+      #   select(-v001, -v045b, -geometry)
+      # 
+      # control_vars <- c(control_vars[!control_vars == 'v045b'],
+      #                   "maj_lang",
+      #                   "maj_rel")
       
       for(j in control_vars[!control_vars == 'v001']){
         temp <- Control %>% 
@@ -470,11 +506,9 @@ dhs_health <-
   dhs_health %>% 
   rename(GID_1 = gid_1) %>% 
   filter(GID_1 != 'NA') %>% 
-  rename(other_religion = other,
-         na_religion = .data[['na']],
-         has_mobile_phone_yes = yes, has_mobile_phone_no = no) %>% 
+  rename(has_mobile_phone_yes = yes, has_mobile_phone_no = no) %>% 
   select(where(~sum(!is.na(.x)) > 0),
-         -.data[['9']], -.data[['99']])
+         -.data[['9']], -na.x, -na.y, -na.x.x, -na.y.y)
 
 
 write.csv(dhs_health,
