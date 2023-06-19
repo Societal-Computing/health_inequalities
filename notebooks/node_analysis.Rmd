@@ -681,10 +681,49 @@ ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) +
 
 ```
 
+As a comparison, we run the same analysis for the OLS.
+
+```{r}
+moran_res <- data.frame()
+
+# loop through a distance vector d ranging from 50 to 2000 m
+dist_start = 1
+dist_stop = 50
+dist_step = 1
+
+for (d in seq(dist_start, dist_stop, dist_step)) {
+  
+  nb_w <- geodat %>% 
+    st_centroid() %>% 
+    dnearneigh(., d1 = 0, d2 = d, longlat = T) %>% 
+    nb2listw(., style = "W", zero.policy = TRUE)
+  
+  for(filename in c('fit_ch_allvac_either', 'fit_ch_novac_either', 'fit_rh_anc_pv', 'fit_rh_anc_pvskill', 'fit_fp_know_mod', 'fit_nt_bf_ever', 'fit_fp_message_noneof3')){
+  
+    i <- get(filename)
+
+  moran_test <- moran.mc(resid(i), nb_w, nsim = 999, zero.policy = TRUE)
+  
+  moran_res <- data.frame(moran_I = moran_test$statistic,
+                             dep_var = filename,
+                             distance = d) %>% 
+    bind_rows(moran_res)
+
+  }
+  print(paste0(d, ' of ',dist_stop))
+}
+
+ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) + 
+  geom_point() +
+  geom_line()
+
+```
 
 ### Looking at effects
 
+Since most spatial autocorrelation is captured via the random intercept, we look at corresponding regression tables across health outcomes.
 
-
-
+```{r}
+tab_model(fit_ch_allvac_either_ri, fit_ch_novac_either_ri, fit_rh_anc_pv_ri, fit_rh_anc_pvskill_ri, fit_fp_know_mod_ri, fit_fp_message_noneof3_ri, fit_nt_bf_ever_ri)
+```
 
