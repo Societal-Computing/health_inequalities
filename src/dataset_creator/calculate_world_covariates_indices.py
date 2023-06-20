@@ -3,6 +3,7 @@ import os
 import sys
 from os.path import join
 from pathlib import Path
+import fiona
 
 import geopandas as gpd
 import numpy as np
@@ -15,10 +16,11 @@ from utils.helper_functions import covariance_indices_downloader
 
 
 class Dataset_Creator_World_Covariates:
-    CRS = "EPSG:4326"
+    CRS = "4326"
 
     def calculate_single_covariant_index(self, gadm_1_dataset, config, source_base_url, mean_label, std_label):
         gadm_1_dataset = gadm_1_dataset.to_crs(self.CRS)
+
         destination_path = config['destination_path']
         extended_url = config['extended_url']
         data_type = config['data_type']
@@ -29,23 +31,14 @@ class Dataset_Creator_World_Covariates:
         gadm_1_dataset[std_label] = None
 
         for index, row in gadm_1_dataset.iterrows():
+            src = rasterio.open(config[row['GID_0']], crs=self.CRS)
             try:
-                with rasterio.open(config[row['GID_0']]) as src:
-                    out_image, out_transform = mask(src, [row['geometry']], crop=True)
-
+                out_image, _ = mask(src, [row['geometry']], nodata= -10000, invert=False)
                 out_image = np.where(out_image > 0, out_image, 0)
                 gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image > 0], dtype=np.float64)
                 gadm_1_dataset.at[index, std_label] = np.std(out_image, dtype=np.float64)
-            except Exception:
-                try:
-                    with rasterio.open(config[row['GID_0']]) as src:
-                        out_image, out_transform = mask(src, [row['geometry']], invert=True)
-
-                    out_image = np.where(out_image > 0, out_image, 0)
-                    gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image > 0], dtype=np.float64)
-                    gadm_1_dataset.at[index, std_label] = np.std(out_image, dtype=np.float64)
-                except Exception as in_ex:
-                    logger.error(in_ex)
+            except Exception as e:
+                logger.error(f"Error due to {e}")
 
         return gadm_1_dataset
 
@@ -53,6 +46,7 @@ class Dataset_Creator_World_Covariates:
         config_night_light = config['night_lights_shapefiles']
         out_data = self.calculate_single_covariant_index(gadm_1_dataset, config_night_light, source_base_url,
                                                          "Mean_of_Night_Light", "Std_of_Night_Light")
+        
         config_dist_major_rd_intersection = config['distance_to_mjr_rd_intersection_shapefiles']
         out_data = self.calculate_single_covariant_index(out_data, config_dist_major_rd_intersection, source_base_url,
                                                          "Mean_distance_to_major_rd_intersection",
@@ -72,11 +66,6 @@ class Dataset_Creator_World_Covariates:
         out_data = self.calculate_single_covariant_index(out_data, config_built_settlement_growth,
                                                     config_built_settlement_growth['wpop_source_base_url'], "Mean_built_settlement_growth",
                                                     "Std_built_settlement_growth")
-        
-        config_population_density = config['population_density']
-        # out_data = self.calculate_single_covariant_index(out_data, config_population_density,
-        #                                             config_population_density['wpop_source_base_url'], "Mean_pop_density",
-        #                                             "Std_pop_density")
 
         return out_data[["GID_1", "Mean_of_Night_Light", "Std_of_Night_Light", "Mean_distance_to_major_rd_intersection",
                          "Std_distance_to_major_rd_intersection", "Mean_distance_to_major_rd",
