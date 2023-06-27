@@ -39,11 +39,11 @@ class Health_Inequalities_DataCreator:
         lmic_sci.drop(columns=['user_loc'], inplace=True)
         lmic_sci_wp = lmic_sci.merge(self.wp_data, on="GID_1", how="inner")
         logger.info(f"combined lmic_sci and w_pop data with length {len(lmic_sci_wp)}")
-        lmic_sci_wp_dhs = lmic_sci_wp.merge(self.dhs_data, on="GID_1", how="inner")
-        logger.info(f"combined lmic_sci_w_pop and dhs data with length {len(lmic_sci_wp_dhs)}")
+        # lmic_sci_wp_dhs = lmic_sci_wp.merge(self.dhs_data, on="GID_1", how="inner")
+        # logger.info(f"combined lmic_sci_w_pop and dhs data with length {len(lmic_sci_wp_dhs)}")
         #lmic_sci_covariates_dhs_afro = lmic_sci_covariates_dhs.merge(self.afrobarometer_data, on="GID_1", how="inner")
         #logger.info(f"combined lmic_sci_w_pop_dhs and afrobarometer data with length {len(lmic_sci_covariates_dhs_afro)}")
-        lmic_sci_wp_dhs_afro_hdi = lmic_sci_wp_dhs.merge(self.hdi, on="GID_1", how="inner")
+        lmic_sci_wp_dhs_afro_hdi = lmic_sci_wp.merge(self.hdi, on="GID_1", how="inner")
         lmic_sci_wp_dhs_afro_hdi = lmic_sci_wp_dhs_afro_hdi.drop_duplicates()
 
         geometries_cols = ['GID_1', 'geometry']
