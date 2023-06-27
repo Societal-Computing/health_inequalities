@@ -17,9 +17,9 @@ datawd <- "/Users/tillkoebe/Documents/Data/Afrobarometer/"
 
 setwd(datawd)
 
-afro <- paste0(datawd,'/afro_regional.dta') %>% 
-  read_dta %>% 
-  select(trpar:mp_service, lon = longitude, lat = latitude)
+afro <- paste0(datawd,'/afro_regional_update.csv') %>% 
+  read_csv %>% 
+  select(region:mp_service, lon = longitude, lat = latitude)
 
 
 AFRdata <- st_read(dsn = "/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_geometries.gpkg") %>% 
@@ -37,13 +37,12 @@ afro <- afro %>%
               select(rowid, GID_1),
             by = 'rowid') %>% 
   as.data.frame() %>% 
-  select(-geometry, -rowid)
+  select(-geometry, -rowid) %>% 
+  group_by(GID_1) %>%
+  summarise(across(member_community:mp_service, ~mean(.x, na.rm = T))) %>%
+  ungroup %>% 
+  mutate(across(everything(), ~ifelse(is.nan(.), NA, .)))
 
 write.csv(afro,
           file='/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/afrobarometer.csv', 
           row.names=FALSE)
-  
-  
-  
-  
-  select(-rowid, -geometry)  

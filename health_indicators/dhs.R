@@ -3,6 +3,7 @@ library(tidyverse)      # Method chaining
 library(labelled)       # Set variable labels
 library(naniar)         # replace_with_na function
 library(sf)             # read shape files
+library(data.table)     # for inrange function
 
 options(dplyr.summarise.inform = FALSE)
 select <- dplyr::select
@@ -61,7 +62,15 @@ AFRdata <- st_read(dsn = "/Users/tillkoebe/Documents/GitHub/health_inequalities/
     HASC_1 = if_else(
       grepl('MDG', GID_1, fixed = TRUE),'MD', HASC_1), # fix ISO of Madagascar
     HASC_1 = if_else(
-      grepl('TCD', GID_1, fixed = TRUE),'CD', HASC_1), # fix ISO of Chad
+      grepl('TCD', GID_1, fixed = TRUE),'TD', HASC_1), # fix ISO of Chad
+    HASC_1 = if_else(
+      grepl('COD', GID_1, fixed = TRUE),'CD', HASC_1), # fix ISO of DR Congo
+    HASC_1 = if_else(
+      grepl('EGY', GID_1, fixed = TRUE),'EG', HASC_1), # fix ISO of Egypt
+    HASC_1 = if_else(
+      grepl('BFA', GID_1, fixed = TRUE),'BF', HASC_1), # fix ISO of Burkina Faso
+    HASC_1 = if_else(
+      grepl('COM', GID_1, fixed = TRUE),'KM', HASC_1), # fix ISO of Comoros
   )
 
 # Start loop across countries ---------------------------------------------
@@ -156,6 +165,7 @@ for(i in country_ls){
       
       ### Check availability of sparse modules
       no_DV <- is_empty(IRdata$d105a)
+      no_FG <- is_empty(MRdata$mg100)
       
       # Indicators --------------------------------------------------------------
       '
@@ -201,6 +211,23 @@ for(i in country_ls){
       ### Contraceptive preferences
       
       source(paste0(codewd,"/contraceptive_preferences.R"), local = T)
+      
+      ### HIV knowledge
+      
+      source(paste0(codewd,"/hiv_knowledge.R"), local = T)
+      
+      ### HIV behaviour
+      
+      source(paste0(codewd,"/hiv_behaviour.R"), local = T)
+      
+      ### Female genital mutilation
+      
+      if(no_FG){
+        FGdata <- data.frame(GID_1 = unique(GEOdata$GID_1))
+      } else{
+        source(paste0(codewd,"/genital_mutilation.R"), local = T)
+      }
+      
       
       
       # Aggregate to geography of interest --------------------------------------
@@ -324,13 +351,69 @@ for(i in country_ls){
         ) %>% 
         ungroup
         
+      HBdata <- HBdata %>% 
+        select(v001, 
+               hk_sex_2plus:hk_sexprtnr_num) %>% 
+        bind_rows(
+          HBmdata %>% 
+            rename_with(., ~ sub(".", "", .x), .cols = c(mv000:mv190)) %>% 
+            select(v001, 
+                   hk_sex_2plus:hk_sexprtnr_num)
+        ) %>% 
+        left_join(GEOdata, 
+                  by = join_by(v001 == DHSCLUST)) %>% 
+        select(-v001, -geometry) %>% 
+        group_by(GID_1) %>% 
+        summarise(across(hk_sex_2plus:hk_sexprtnr_num,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
+      
+      HKdata <- HKdata %>% 
+        select(v001, 
+               hk_ever_heard:hk_atd_shop_notbuy) %>% 
+        bind_rows(
+          HKmdata %>% 
+            rename_with(., ~ sub(".", "", .x), .cols = c(mv000:mv190)) %>% 
+            select(v001, 
+                   hk_ever_heard:hk_atd_shop_notbuy)
+        ) %>% 
+        left_join(GEOdata, 
+                  by = join_by(v001 == DHSCLUST)) %>% 
+        select(-v001, -geometry) %>% 
+        group_by(GID_1) %>% 
+        summarise(across(hk_ever_heard:hk_atd_shop_notbuy,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
+      
+      if(!no_FG){
+        FGdata <- FGdata %>% 
+        select(v001, 
+               fg_relig:fg_cont) %>% 
+        bind_rows(
+          FGmdata %>% 
+            rename_with(., ~ sub(".", "", .x), .cols = c(mv000:mv190)) %>% 
+            select(v001, 
+                   fg_relig:fg_cont)
+        ) %>% 
+        left_join(GEOdata, 
+                  by = join_by(v001 == DHSCLUST)) %>% 
+        select(-v001, -geometry) %>% 
+        group_by(GID_1) %>% 
+        summarise(across(fg_relig:fg_cont,  ~ weighted.mean(.x, wt = wt, na.rm = TRUE))
+        ) %>% 
+        ungroup
+      }
+      
       temp <- ACdata %>% 
         left_join(BFdata, by = 'GID_1') %>% 
         left_join(CHdata, by = 'GID_1') %>% 
         left_join(CKdata, by = 'GID_1') %>% 
         left_join(CPdata, by = 'GID_1') %>% 
         left_join(DVdata, by = 'GID_1') %>% 
+        left_join(FGdata, by = 'GID_1') %>% 
         left_join(HAdata, by = 'GID_1') %>% 
+        left_join(HBdata, by = 'GID_1') %>% 
+        left_join(HKdata, by = 'GID_1') %>% 
         left_join(WEdata, by = 'GID_1')
       
       # Add control variables ---------------------------------------------------
@@ -508,7 +591,7 @@ dhs_health <-
   filter(GID_1 != 'NA') %>% 
   rename(has_mobile_phone_yes = yes, has_mobile_phone_no = no) %>% 
   select(where(~sum(!is.na(.x)) > 0),
-         -.data[['9']], -na.x, -na.y, -na.x.x, -na.y.y)
+         -.data[['9']], -.data[['na']], -na.x, -na.y, -na.x.x, -na.y.y)
 
 
 write.csv(dhs_health,
