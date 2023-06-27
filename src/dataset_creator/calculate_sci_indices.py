@@ -260,7 +260,6 @@ class SCI_Indices_Calculator:
 
         # merge all sci related features for only African Countries
         distance_between_sci = self.compute_distance_indices(gadm1_dataset[['GID_1', 'geometry']], sci_dataset)
-        print(distance_between_sci.columns.tolist())
         avg_median_std_sci = self.calculate_avg_median_std_SCI(sci_dataset, lmic_gid1)
         regional_ratios = self.calculate_regional_ratios(sci_dataset, agg_sci_from_region_to_africa,
                                                          agg_sci_from_region_to_all_sci)

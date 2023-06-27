@@ -69,7 +69,11 @@ class Data_Preprocessing_LMIC:
     def refactor_GHA_GID_1(row: pd.Series):
         GID_1 = row['GID_1']
         if row['COUNTRY'].strip() == "Ghana":
-            GID_1 = f"{GID_1[:3]}.{GID_1[4:-1]}1"
+            GID_1 = GID_1[:5]
+            if '_' in GID_1:
+                GID_1 = GID_1.replace('_','')
+
+            GID_1 = f"{GID_1[:3]}.{GID_1[3:]}_1"
             return GID_1
         else:
             return GID_1
@@ -89,16 +93,17 @@ class Data_Preprocessing_LMIC:
                      'NL_NAME_1', 'TYPE_1', 'ENGTYPE_1', 'CC_1'])
 
         combined_shapefile.rename(columns={"HASC_1": "HASC_x"}, inplace=True)
+        combined_shapefile['GID_1'] = combined_shapefile.apply(lambda row: self.refactor_GHA_GID_1(row), axis=1)
         gadm1_dhs_dataset = pd.merge(combined_shapefile, africa_dataset, on="GID_1", how="inner")
 
         # change GID_1 for Ghana
-        gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.apply(lambda row: self.refactor_GHA_GID_1(row), axis=1)
+        #gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.apply(lambda row: self.refactor_GHA_GID_1(row), axis=1)
         gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.GID_1.apply(lambda x:
                                                                    x.replace('.', '').replace('_1', ''))
         # change GID_1 of Comoros and Cape Verde
         #gadm1_dhs_dataset['GID_1_1'] = gadm1_dhs_dataset['GID_1']
-        gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.apply(lambda x: self.correction_of_GID_for_special_case(x),
-                                                              axis=1)
+        # gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.apply(lambda x: self.correction_of_GID_for_special_case(x),
+        #                                                       axis=1)
         
 
         # resolving issues with HASC_1 naming
