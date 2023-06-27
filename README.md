@@ -2,6 +2,15 @@
 
 Git repository for the corresponding paper with the working title 'Social connectedness and health inequalities'
 
+<div class="row">
+  <div class="column">
+    <img src="images/Mean_friendship.png" alt="Snow" style="float: left; width: 48% ; padding-right: 2%">
+  </div>
+  <div class="column">
+    <img src="images/trgen.png" alt="Forest" style="float: left;width: 48%; padding-left: 2%">
+  </div>
+</div>
+
 #### Environment setup
 
 ``` pip install -r requirements.txt ```
