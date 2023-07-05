@@ -2,8 +2,6 @@ import json
 import os
 import sys
 from os.path import join
-from pathlib import Path
-import fiona
 
 import geopandas as gpd
 import numpy as np
@@ -33,7 +31,7 @@ class Dataset_Creator_World_Covariates:
         for index, row in gadm_1_dataset.iterrows():
             src = rasterio.open(config[row['GID_0']], crs=self.CRS)
             try:
-                out_image, _ = mask(src, [row['geometry']], nodata= -10000, invert=False)
+                out_image, _ = mask(src, [row['geometry']], nodata=-10000, invert=False)
                 out_image = np.where(out_image > 0, out_image, 0)
                 gadm_1_dataset.at[index, mean_label] = np.mean(out_image[out_image > 0], dtype=np.float64)
                 gadm_1_dataset.at[index, std_label] = np.std(out_image, dtype=np.float64)
@@ -46,7 +44,7 @@ class Dataset_Creator_World_Covariates:
         config_night_light = config['night_lights_shapefiles']
         out_data = self.calculate_single_covariant_index(gadm_1_dataset, config_night_light, source_base_url,
                                                          "Mean_of_Night_Light", "Std_of_Night_Light")
-        
+
         config_dist_major_rd_intersection = config['distance_to_mjr_rd_intersection_shapefiles']
         out_data = self.calculate_single_covariant_index(out_data, config_dist_major_rd_intersection, source_base_url,
                                                          "Mean_distance_to_major_rd_intersection",
@@ -56,20 +54,22 @@ class Dataset_Creator_World_Covariates:
         out_data = self.calculate_single_covariant_index(out_data, config_distance_to_mjr_rd_shapefiles,
                                                          source_base_url, "Mean_distance_to_major_rd",
                                                          "Std_distance_to_major_rd")
-        
+
         config_distance_to_inland_water = config['distance_to_inland_water']
         out_data = self.calculate_single_covariant_index(out_data, config_distance_to_inland_water,
-                                                    source_base_url, "Mean_distance_to_inland_water",
-                                                    "Std_distance_to_inland_water")
-        
+                                                         source_base_url, "Mean_distance_to_inland_water",
+                                                         "Std_distance_to_inland_water")
+
         config_built_settlement_growth = config['built_settlement_growth']
         out_data = self.calculate_single_covariant_index(out_data, config_built_settlement_growth,
-                                                    config_built_settlement_growth['wpop_source_base_url'], "Mean_built_settlement_growth",
-                                                    "Std_built_settlement_growth")
+                                                         config_built_settlement_growth['wpop_source_base_url'],
+                                                         "Mean_built_settlement_growth",
+                                                         "Std_built_settlement_growth")
 
         return out_data[["GID_1", "Mean_of_Night_Light", "Std_of_Night_Light", "Mean_distance_to_major_rd_intersection",
                          "Std_distance_to_major_rd_intersection", "Mean_distance_to_major_rd",
-                         "Std_distance_to_major_rd","Mean_distance_to_inland_water", "Std_distance_to_inland_water", "Mean_built_settlement_growth", 
+                         "Std_distance_to_major_rd", "Mean_distance_to_inland_water", "Std_distance_to_inland_water",
+                         "Mean_built_settlement_growth",
                          "Std_built_settlement_growth"]]
 
 

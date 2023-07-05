@@ -20,11 +20,13 @@ class SCI_Indices_Calculator:
 
     QUANTILES = ["Ratio_SCI_low_hi_africa", "Ratio_SCI_middle_hi_africa", "Ratio_SCI_high_hi_africa"]
 
-    def __init__(self, sci_data_path: str, all_shapefile_path: str,fb_dataset_path: str, health_index_dataset_path: str):
+    def __init__(self, sci_data_path: str, all_shapefile_path: str, fb_dataset_path: str,
+                 health_index_dataset_path: str):
         self.sci_dataset = worksheet_reader(sci_data_path)
         lmic_shapefile = gpd.read_file(all_shapefile_path)
         fb_data = pd.read_csv(fb_dataset_path)
-        self.gadm1_dhs_dataset = lmic_shapefile.merge(fb_data, on='GID_1', how='inner')[["GID_1", "geometry", "All_devices_age_13_plus_all_genders"]]
+        self.gadm1_dhs_dataset = lmic_shapefile.merge(fb_data, on='GID_1', how='inner')[
+            ["GID_1", "geometry", "All_devices_age_13_plus_all_genders"]]
         self.health_index_dataset_path = health_index_dataset_path
 
     @staticmethod
@@ -96,22 +98,25 @@ class SCI_Indices_Calculator:
         sci_dataset['distance'] = sci_dataset['distance'].abs()
 
         all_user_locs = sci_dataset['user_loc'].unique().tolist()
-        
-        #TODO refactor this (Theo)
+
+        # TODO refactor this (Theo)
         min_values_dict = {}
         for user_loc_ in all_user_locs:
-            min_values_dict[user_loc_] = min(sci_dataset[(sci_dataset['user_loc'] == user_loc_) & sci_dataset['distance'] > 0]['distance'])
-        
+            min_values_dict[user_loc_] = min(
+                sci_dataset[(sci_dataset['user_loc'] == user_loc_) & sci_dataset['distance'] > 0]['distance'])
+
         for user_loc_ in min_values_dict:
-            sci_dataset.loc[(sci_dataset['user_loc'] == user_loc_) & (sci_dataset['fr_loc'] == user_loc_),'distance']= min_values_dict[user_loc_]
+            sci_dataset.loc[(sci_dataset['user_loc'] == user_loc_) & (sci_dataset['fr_loc'] == user_loc_), 'distance'] = \
+            min_values_dict[user_loc_]
 
         sci_dataset['distance'] = sci_dataset.apply(lambda x: 0.1 if x['distance'] <= 0 else x['distance'], axis=1)
-        
+
         sci_dataset.drop(columns=["fr_loc_centroid", "user_loc_centroid", "geometry"], inplace=True)
-        
-        new_data = sci_dataset.groupby(['user_loc']).apply(lambda x: np.average(x['distance'], weights=x['scaled_sci'])).reset_index()
-        new_data.rename(columns={0:'Average_distance_of_friendships_km'}, inplace=True)
-        
+
+        new_data = sci_dataset.groupby(['user_loc']).apply(
+            lambda x: np.average(x['distance'], weights=x['scaled_sci'])).reset_index()
+        new_data.rename(columns={0: 'Average_distance_of_friendships_km'}, inplace=True)
+
         avg_median_std_distance = sci_dataset.groupby('user_loc').agg(Mean_dist_to_SCI_km=('distance', np.mean),
                                                                       Median_dist_to_SCI_km=('distance', np.median),
                                                                       Std_dist_to_SCI_km=('distance', np.std),
@@ -119,11 +124,12 @@ class SCI_Indices_Calculator:
                                                                       ).reset_index()
         avg_median_std_distance = avg_median_std_distance.merge(new_data, on='user_loc', how='inner')
         # converting EPSG:3856 distances to km by dividing by 1000
-        avg_median_std_distance["Mean_dist_to_SCI_km"] = avg_median_std_distance["Mean_dist_to_SCI_km"]/1000
-        avg_median_std_distance["Median_dist_to_SCI_km"] = avg_median_std_distance["Median_dist_to_SCI_km"]/1000
-        avg_median_std_distance["Std_dist_to_SCI_km"] = avg_median_std_distance["Std_dist_to_SCI_km"]/1000
-        avg_median_std_distance["Total_dist_to_SCI_km"] = avg_median_std_distance["Total_dist_to_SCI_km"]/1000
-        avg_median_std_distance["Average_distance_of_friendships_km"] = avg_median_std_distance["Average_distance_of_friendships_km"]/1000
+        avg_median_std_distance["Mean_dist_to_SCI_km"] = avg_median_std_distance["Mean_dist_to_SCI_km"] / 1000
+        avg_median_std_distance["Median_dist_to_SCI_km"] = avg_median_std_distance["Median_dist_to_SCI_km"] / 1000
+        avg_median_std_distance["Std_dist_to_SCI_km"] = avg_median_std_distance["Std_dist_to_SCI_km"] / 1000
+        avg_median_std_distance["Total_dist_to_SCI_km"] = avg_median_std_distance["Total_dist_to_SCI_km"] / 1000
+        avg_median_std_distance["Average_distance_of_friendships_km"] = avg_median_std_distance[
+                                                                            "Average_distance_of_friendships_km"] / 1000
         logger.info("Distance computations completed!")
         return avg_median_std_distance
 
@@ -194,7 +200,6 @@ class SCI_Indices_Calculator:
         logger.info("Computations on raw SCI completed!")
         return avg_std
 
-
     def calculate_SCI_share_based_HI_quantiles(self, health_index_data, raw_sci, lmic_countries):
         raw_sci = raw_sci.copy()
         total_sci = raw_sci.groupby('user_loc').agg(Total_SCI=('scaled_sci', 'sum')).reset_index()
@@ -222,7 +227,7 @@ class SCI_Indices_Calculator:
             ['GID_1', 'COUNTRY', 'Mean_SCI_with_Self', 'Median_SCI_with_Self', 'Std_SCI_with_Self', 'SCI',
              'Mean_SCI_without_Self', 'Median_SCI_without_Self', 'Std_SCI_without_Self',
              'Intraconnection_index', 'LMIC_interconnection_index', 'geometry']
-             ]
+        ]
         dhs_sci_health = self.dhsData_sciData_with_healthInequalities(dhs_dataset_path, dhs_sci_dataset)
         # remove duplicates in data
         dhs_sci_health = dhs_sci_health.T.drop_duplicates().T
@@ -273,7 +278,8 @@ class SCI_Indices_Calculator:
                                      'Std_SCI_with_Self', 'SCI', 'Mean_SCI_without_Self', 'Median_SCI_without_Self',
                                      'Std_SCI_without_Self', 'Mean_dist_to_SCI_km', 'Median_dist_to_SCI_km',
                                      'Std_dist_to_SCI_km', 'Total_dist_to_SCI_km', 'Ratio_selfloop_to_country',
-                                     'Ratio_selfloop_to_africa', 'Ratio_selfloop_to_all_sci','Average_distance_of_friendships_km']]
+                                     'Ratio_selfloop_to_africa', 'Ratio_selfloop_to_all_sci',
+                                     'Average_distance_of_friendships_km']]
         quantiles_hi = self.calculate_SCI_share_based_HI_quantiles(health_index_data, sci_dataset, lmic_gid1)
         sci_features = sci_features.merge(quantiles_hi, on='user_loc', how='inner')
         save_path = "external_dataset/sci_indices.csv"
@@ -286,5 +292,6 @@ if __name__ == "__main__":
     config_path = "config_scripts/lmic_shapefiles_config.json"
     with open(config_path) as pth:
         config = json.load(pth)
-    obj = SCI_Indices_Calculator(config["GADM_1"]["sci_dataset_path"], config["GADM_1"]["lmic_shapefile"], config['fb_dataset_path'], config["world_health_index_dataset_path"])
+    obj = SCI_Indices_Calculator(config["GADM_1"]["sci_dataset_path"], config["GADM_1"]["lmic_shapefile"],
+                                 config['fb_dataset_path'], config["world_health_index_dataset_path"])
     obj.main()
