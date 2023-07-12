@@ -260,12 +260,12 @@ for(i in country_ls){
       
       CPdata <- CPdata %>% 
         select(caseid, 
-               fp_message_noneof4:fp_message_noneof3) %>% 
+               fp_use_mod:fp_message_noneof3) %>% 
         bind_rows(
           CPmdata %>% 
             rename_with(., ~ sub(".", "", .x), .cols = c(mcaseid)) %>% 
             select(caseid, 
-                   fp_message_noneof4:fp_message_noneof3)
+                   fp_use_mod:fp_message_noneof3)
         )
       
       if(!no_DV){
@@ -290,11 +290,11 @@ for(i in country_ls){
                                          ifelse(is.na(we_num_justifydv), NA, 1)))
         
       HBdata <- HBdata %>% 
-        select(caseid, hk_sex_2plus:hk_sexprtnr_num) %>% 
+        select(caseid, hk_sex_2plus:hk_test_ever) %>% 
         bind_rows(
           HBmdata %>% 
             rename_with(., ~ sub(".", "", .x), .cols = c(mcaseid)) %>% 
-            select(caseid,  hk_sex_2plus:hk_sexprtnr_num)
+            select(caseid,  hk_sex_2plus:hk_test_ever)
         )
       
       HKdata <- HKdata %>% 
@@ -315,12 +315,11 @@ for(i in country_ls){
         )
       }
       
-      control_vars <- c('v104', # gender
+      control_vars <- c('v021', # PSU
+                        'v024', # region
+                        'v104', # gender
                         'hid', # household id
                         'vidx', # line number
-                        'v105', # age
-                        'v025', # urban/rural
-                        'v122', # highest educational level
                         'v243a', # mobile phone ownership
                         'v270') # wealth index in quintiles
       
@@ -329,6 +328,9 @@ for(i in country_ls){
                wt,
                v000,
                v001,
+               v012,
+               v025,
+               v106,
                hid = hhid,
                v003) %>% 
         bind_rows(
@@ -338,33 +340,41 @@ for(i in country_ls){
                wt,
                v000,
                v001,
+               v012,
+               v025,
+               v106,
                hid = hhid,
-               v003)
-        ) %>% 
+               v003)) %>% 
         left_join(PRdata %>% 
                     select(hhid, paste0("h", control_vars)) %>% 
                     rename_with(., ~ sub(".", "", .x)) %>% 
-                    set_value_labels(v270 = c("poorest" = 1, # Some surveys have messed up labelling
-                                              "poorer" = 2,
-                                              "middle" = 3, 
-                                              "richer" = 4,
-                                              "richest" = 5)) %>% 
-                    mutate(v105 = as.integer(as_factor(v105)),
-                           v105 = replace(v105, v105 == 98, NA),
-                           v105 = cut(v105, 
-                                      breaks=c(0, 15, 20, 25, 30, 35, 40, 45, 50, Inf),
-                                      include.lowest = FALSE, right = TRUE),
-                           across(where(is.labelled), as_factor),
-                           across(where(is.factor), as.character),
-                           across(where(is.numeric), as.integer),
-                           v122 = case_when(
-                             v122 %in% c('secondary', 'higher') ~ 'secondary_or_higher',
-                             v122 %in% c('no education', 'primary') ~ 'primary_or_no',
-                             is.na(v122) ~ NA)
-                    ) %>% 
                     rename(v003 = vidx),
-                  by = c('hid', 'v003')
-        ) %>% 
+                  by = c('hid', 'v003')) %>% 
+        set_value_labels(v270 = c("poorest" = 1, # Some surveys have messed up labelling
+                                  "poorer" = 2,
+                                  "middle" = 3, 
+                                  "richer" = 4,
+                                  "richest" = 5)) %>% 
+        mutate(v012 = as.integer(as_factor(v012)),
+               v012 = replace(v012, v012 == 98, NA),
+               v012 = cut(v012, 
+                          breaks=c(0, 15, 20, 25, 30, 35, 40, 45, 50, Inf),
+                          include.lowest = FALSE, right = TRUE),
+               across(where(is.labelled), as_factor),
+               across(where(is.factor), as.character),
+               # across(where(is.numeric), as.integer),
+               v106 = case_when(
+                 v106 %in% c('secondary', 'higher') ~ 'secondary_or_higher',
+                 v106 %in% c('no education', 'primary') ~ 'primary_or_no',
+                 is.na(v106) ~ NA),
+               v104 = replace(v104, v104 == 'Male', 'male'),
+               v104 = replace(v104, v104 == 'Female', 'female'),
+               v243a = replace(v243a, v243a == 'Yes', 'yes'),
+               v243a = replace(v243a, v243a == 'No', 'no'),
+               v243a = replace(v243a, v243a == '9', NA),
+               v025 = replace(v025, v025 == 'Rural', 'rural'),
+               v025 = replace(v025, v025 == 'Urban', 'urban'),
+               strata = paste0(v024, '_', v025)) %>% 
         left_join(ACdata, by = 'caseid') %>% 
         # left_join(BFdata, by = 'caseid') %>% 
         left_join(CHdata, by = 'caseid') %>% 
@@ -379,7 +389,7 @@ for(i in country_ls){
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
         mutate(pid = paste0(substr(v000, 1, 2), caseid)) %>% 
-        select(-caseid, -v000, -v001, -geometry)
+        select(-caseid, -v000, -v001, -v024, -geometry)
       
       # temp <- IRdata %>% 
       #   select(caseid, 
