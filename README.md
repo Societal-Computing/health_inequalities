@@ -4,7 +4,7 @@ Git repository for the corresponding paper with the working title 'Social connec
 
 <div class="row">
   <div class="column" style="float: left; width: 50%">
-    <img src="images/Mean_friendship.png" alt="Snow" style="width: 100%">
+    <img src="images/Mean_SCI_with_Self.png" alt="Snow" style="width: 100%">
   </div>
   <div class="column" style="float: right; width: 50%">
     <img src="images/trgen.png" alt="Forest" style="width: 100%">
