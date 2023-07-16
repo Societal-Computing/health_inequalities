@@ -95,6 +95,13 @@ IRdata <- IRdata %>% mutate(hk_sexprtnr_num = case_when(
   v836>95 ~ NA_real_,
   v836>=1 & v836<=95 ~ as.numeric(v836)))
 
+# Ever tested on HIV
+IRdata <- IRdata %>% mutate(hk_test_ever = case_when(
+  v781==1 ~ 1,
+  TRUE ~ 0)) %>%
+  set_value_labels(hk_test_ever = yesno) %>%
+  set_variable_labels(hk_test_ever = "Ever been tested for HIV")
+
 # //Mean number of sexual partners - by age group
 sexprtnr_mean_age <- IRdata %>% group_by(v013) %>%
   summarise(sexprtnr_mean_age = round(weighted.mean(hk_sexprtnr_num, wt, na.rm=TRUE),1))
@@ -219,6 +226,12 @@ MRdata <- MRdata %>% mutate(hk_paid_sex_cond = case_when(
   set_value_labels(hk_paid_sex_cond = yesno) %>%
   set_variable_labels(hk_paid_sex_cond = "Used a condom at last paid sexual intercourse in the past 12 months among men 15-49")
 
+# Ever tested on HIV
+MRdata <- MRdata %>% mutate(hk_test_ever = case_when(
+  mv781==1 ~ 1,
+  TRUE ~ 0)) %>%
+  set_value_labels(hk_test_ever = yesno) %>%
+  set_variable_labels(hk_test_ever  = "Ever been tested for HIV")
 
 HBdata <- IRdata %>% 
   select(caseid,
@@ -237,7 +250,8 @@ HBdata <- IRdata %>%
          hk_sex_notprtnr,# "Had sexual intercourse with a person that is not their spouse and does not live with them in the past 12 months"
          hk_cond_2plus,# "Have two or more sexual partners in the past 12 months and used a condom at last sex"
          hk_cond_notprtnr,# "Used a condom at last sex with a partner that is not their spouse and does not live with them in the past 12 months"
-         hk_sexprtnr_num# "Mean number of sexual partners"
+         hk_sexprtnr_num,# "Mean number of sexual partners"
+         hk_test_ever # Ever been tested for HIV
          )
 
 HBmdata <- MRdata %>% 
@@ -260,5 +274,6 @@ HBmdata <- MRdata %>%
          hk_sexprtnr_num,# "Mean number of sexual partners"
          hk_paid_sex_ever,# "Ever paid for sex among men 15-49"
          hk_paid_sex_12mo,# "Paid for sex in the past 12 months among men 15-49"
-         hk_paid_sex_cond# "Used a condom at last paid sexual intercourse in the past 12 months among men 15-49"
+         hk_paid_sex_cond,# "Used a condom at last paid sexual intercourse in the past 12 months among men 15-49"
+         hk_test_ever # Ever been tested for HIV
   )

@@ -49,7 +49,8 @@ yesno <- c("Yes" = 1, "No" = 0)
 
 
 # // Ever heard of HIV/AIDS
-IRdata <- IRdata %>% mutate(hk_ever_heard = v751)  %>%
+IRdata <- IRdata %>% mutate(hk_ever_heard = case_when(v751==1 ~ 1,
+                            TRUE ~ 0))  %>%
   set_value_labels(hk_ever_heard = yesno) %>%
   set_variable_labels(hk_ever_heard = "Have ever heard of HIV or AIDS")
 
@@ -116,6 +117,17 @@ IRdata <- IRdata %>% mutate(hk_knw_comphsv= case_when(
   TRUE ~ 0)) %>%
   set_value_labels(hk_knw_comphsv =yesno) %>%
   set_variable_labels(hk_knw_comphsv = "Have comprehensive knowledge about HIV")
+
+#  //HIV any knowledge
+IRdata <- IRdata %>% mutate(hk_knw_any= case_when(
+  hk_knw_risk_condsex==1 | hk_knw_hiv_hlth==1 | hk_knw_hiv_hlth_2miscp==1 ~ 1,
+  TRUE ~ 0)) %>%
+  set_value_labels(hk_knw_any =yesno) %>%
+  set_variable_labels(hk_knw_any = "Have any knowledge about HIV")
+
+#  //HIV linear knowledge index
+IRdata <- IRdata %>% mutate(hk_knw_linear_index= rowMeans(select(., hk_ever_heard:hk_knw_hiv_hlth_2miscp), na.rm = T)) %>%
+  set_variable_labels(hk_knw_linear_index = "HIV linear knowledge index")
 
 #  //Know HIV MTCT can occur during pregnancy
 IRdata <- IRdata %>% mutate(hk_knw_mtct_preg= case_when(
@@ -258,6 +270,17 @@ MRdata <- MRdata %>% mutate(hk_knw_comphsv= case_when(
   set_value_labels(hk_knw_comphsv =yesno) %>%
   set_variable_labels(hk_knw_comphsv = "Have comprehensive knowledge about HIV")
 
+#  //HIV any knowledge
+MRdata <- MRdata %>% mutate(hk_knw_any= case_when(
+  hk_knw_risk_condsex==1 | hk_knw_hiv_hlth==1 | hk_knw_hiv_hlth_2miscp==1 ~ 1,
+  TRUE ~ 0)) %>%
+  set_value_labels(hk_knw_any =yesno) %>%
+  set_variable_labels(hk_knw_any = "Have any knowledge about HIV")
+
+#  //HIV linear knowledge index
+MRdata <- MRdata %>% mutate(hk_knw_linear_index= rowMeans(select(., hk_ever_heard:hk_knw_hiv_hlth_2miscp), na.rm = T)) %>%
+  set_variable_labels(hk_knw_linear_index = "HIV linear knowledge index")
+
 #  //Know HIV MTCT can occur during pregnancy
 MRdata <- MRdata %>% mutate(hk_knw_mtct_preg= case_when(
   mv774a==1 ~ 1,
@@ -344,6 +367,8 @@ HKdata <- IRdata %>%
          hk_knw_hiv_food, # "Know cannot become infected by sharing food with a person who has HIV"
          hk_knw_hiv_hlth_2miscp, # "Know a healthy looking person can have HIV and reject the two most common local misconceptions"
          hk_knw_comphsv, # "Have comprehensive knowledge about HIV"
+         hk_knw_any, # 'Have any knowledge about HIV'
+         hk_knw_linear_index, # 'HIV linear knowledge index'
          
          hk_knw_mtct_preg, # "Know HIV mother to child transmission can occur during pregnancy"
          hk_knw_mtct_deliv, # "Know HIV mother to child transmission can occur during delivery"
@@ -380,6 +405,8 @@ HKmdata <- MRdata %>%
          hk_knw_hiv_food, # "Know cannot become infected by sharing food with a person who has HIV"
          hk_knw_hiv_hlth_2miscp, # "Know a healthy looking person can have HIV and reject the two most common local misconceptions"
          hk_knw_comphsv, # "Have comprehensive knowledge about HIV"
+         hk_knw_any, # 'Have any knowledge about HIV'
+         hk_knw_linear_index, # 'HIV linear knowledge index'
          
          hk_knw_mtct_preg, # "Know HIV mother to child transmission can occur during pregnancy"
          hk_knw_mtct_deliv, # "Know HIV mother to child transmission can occur during delivery"

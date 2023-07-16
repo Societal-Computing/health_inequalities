@@ -1,17 +1,13 @@
 library(tidyverse)    # Data wrangling
-library(sf)           # Spatial analysis
 library(caret)        # For machine learning and preprocessing
-library(MASS)         # For stepwise feature selection
+library(lme4)         # For random effects models
 
 library(sjPlot)
 library(sjmisc)
+library(stargazer)
 
-
-
-select <- dplyr::select
 
 # Loading relevant data ---------------------------------------------------
-
 # Social Connectedness Index
 sci <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/sci_indices.csv") %>% 
   distinct(user_loc, .keep_all = T)
@@ -29,7 +25,9 @@ fb <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_d
   distinct(GID_1, .keep_all = T)
 
 # DHS data
-dhs <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health.csv')
+dhs_raw <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health_individual.csv') %>% 
+  rename(GID_1 = gid_1) %>% 
+  filter(GID_1 != 'NA')
 
 # Afrobarometer
 afr <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/afrobarometer.csv') %>% 
@@ -37,16 +35,38 @@ afr <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_
 
 # Raw SCI
 sci_raw <- read.csv("/Users/tillkoebe/Documents/Data/SCI/sci_gadm1.tsv", sep = "\t") %>% 
-  filter(user_loc %in% unique(dhs$GID_1),
-         fr_loc %in% unique(dhs$GID_1))
+  filter(user_loc %in% unique(dhs_raw$GID_1),
+         fr_loc %in% unique(dhs_raw$GID_1))
 
 
 # Data preparation --------------------------------------------------------
 
+### Get DHS on regional-level
+dhs <- dhs_raw %>% 
+  select(-hid, -strata, -v003, -v021, -pid) %>% 
+  group_by(GID_1) %>% 
+  summarise(across(where(is.numeric), ~ weighted.mean(.x, wt = wt, na.rm = TRUE))) %>% 
+  ungroup
+
+for(j in c('v012', 'v025', 'v104', 'v106', 'v243a', 'v270')){
+  dhs <- dhs_raw %>% 
+    drop_na(.data[[j]]) %>% 
+    group_by(.data[[j]], GID_1) %>%
+    summarise(n = sum(wt, na.rm = T)) %>%
+    group_by(GID_1) %>%
+    mutate(freq = n / sum(n, na.rm = T), n = sum(n, na.rm = T)) %>% 
+    ungroup %>% 
+    select(-n) %>% 
+    pivot_wider(names_from = {{j}}, 
+                values_from = freq, 
+                values_fill = list(freq = 0)) %>%
+    right_join(dhs, by = 'GID_1')
+}
+
 ### Define targets
 dhs_targets <- dhs %>% 
-  select(rh_anc_pv:we_num_justifydv) %>% 
-  select(starts_with(c('rh', 'ch', 'nt'))) %>% 
+  select(fp_use_mod, hk_cond_notprtnr, hk_test_ever, fp_know_mod, 
+         hk_knw_linear_index, hk_knw_any, hk_knw_comphsv) %>% 
   names()
 
 ### Define controls
@@ -57,31 +77,31 @@ dhs_controls <- c(
   'richer',
   'richest',
   'female',
+  'male',
   'secondary_or_higher',
-  'has_mobile_phone_yes',
+  'primary_or_no',
+  'yes',
+  'no',
   'rural',
-  "X15.19",
-  "X20.24",
-  "X25.29",
-  "X30.34",
-  "X35.39",
-  "X40.44",
-  "X45.49"    
-  # 'rel_minor',
-  # 'lang_minor'
-  # 'muslim',
-  # 'protestant',
-  # 'catholic'
+  'urban',
+  "(0,15]",
+  "(15,20]",
+  "(20,25]",
+  "(25,30]",
+  "(30,35]",
+  "(35,40]",
+  "(40,45]",
+  "(45,50]"
 )
 
-sci_controls <- c('Mean_dist_to_SCI', # Average distance of friendships
-                  'Median_dist_to_SCI', # Average distance of friendships
-                  'Std_dist_to_SCI', # Clustering measure of friendships across distances
-                  'Total_dist_to_SCI', # Total distance of friendships
+sci_controls <- c('Mean_dist_to_SCI_km', # Average distance of friendships
+                  'Median_dist_to_SCI_km', # Average distance of friendships
+                  'Std_dist_to_SCI_km', # Clustering measure of friendships across distances
+                  'Total_dist_to_SCI_km', # Total distance of friendships
                   'Ratio_selfloop_to_country', # Share of local friendships within the same country
                   'Ratio_selfloop_to_africa', # Share of local friendships that stay within Africa
                   'Ratio_selfloop_to_all_sci', # Share of local friendships of all friendships
-                  'Average_distance_of_friendships', 
+                  'Average_distance_of_friendships_km', 
                   'Mean_SCI_without_Self', # Average probability of friendships with other regions
                   'Median_SCI_without_Self', # Average probability of friendships with other regions
                   'Std_SCI_without_Self', # Clustering measure for the probability of friendships with other regions
@@ -105,22 +125,30 @@ wp_controls <- c(
   'Mean_distance_to_major_rd_intersection',
   'Std_distance_to_major_rd_intersection',
   'Mean_distance_to_major_rd',
-  'Std_distance_to_major_rd')
+  'Std_distance_to_major_rd',
+  "Mean_distance_to_inland_water",
+  "Std_distance_to_inland_water",
+  "Mean_built_settlement_growth",
+  "Std_built_settlement_growth")
 
 fb_controls <- c('fb_rwi_mean',
                  'fb_rwi_mean_pop_wght',
                  'FB_pntr_15to49_female',
-                 'FB_pntr_15to49_all'
-)
+                 'FB_pntr_15to49_all')
 
-afr_controls <- c('trpar',
+afr_controls <- c('member_community',
+                  'trpar',
                   'trtax',
                   'trgov',
                   'trlaw',
                   'trgen',
                   'trrel',
                   'trnei',
-                  'tracq')
+                  'tracq',
+                  'railway_contact',
+                  'explorer_contact',
+                  'district_ethnic_frac',
+                  'loc_ln_export_area')
 
 ### Prepare dataset
 dat <- dhs %>% 
@@ -153,32 +181,14 @@ dat <- dhs %>%
 
 ### Center and scale SCI variables
 dat <- dat %>% 
-  mutate(across(all_of(sci_controls), ~ scale(.x, scale = T)),
-         across(all_of(wp_controls), ~ scale(.x, scale = T)),
+  mutate(across(all_of(wp_controls), ~ scale(.x, scale = T)),
          across(all_of(afr_controls), ~ scale(.x, scale = T)))
-
-### Define interaction effects
-
-sci_dhs_interaction <- crossing(sci_controls, dhs_controls) %>% 
-  mutate(interaction = paste0(sci_controls,':',dhs_controls)) %>% 
-  select(interaction) %>% 
-  t %>% 
-  as.vector
-
-sci_wp_interaction <- crossing(sci_controls, wp_controls) %>% 
-  mutate(interaction = paste0(dhs_controls,':',wp_controls)) %>% 
-  select(interaction) %>% 
-  t %>% 
-  as.vector
 
 # Get inter-regional differences ------------------------------------------
 
 long <- sci_raw %>% 
   rename(GID_1 = user_loc) %>% 
-  mutate(scaled_sci = scaled_sci / 1000000000,
-         tertiale_sci = factor(ntile(scaled_sci, 3), levels = c(1,2,3), labels = c('weak', 'medium', 'strong')),
-         log_sci = scaled_sci %>% log %>% scale %>% as.vector,
-         sqrt_sci = sqrt(scaled_sci)) %>% 
+  mutate(scaled_sci = (scaled_sci/1000000000)) %>%
   filter(GID_1 != fr_loc)
 
 for(i in c(dhs_targets, dhs_controls, sci_controls, wp_controls, fb_controls, hdi_controls, afr_controls)){
@@ -202,277 +212,246 @@ for(i in c(dhs_targets, dhs_controls, sci_controls, wp_controls, fb_controls, hd
 
 ### Reducing it to the unique pairwise connections (e.g. )
 long <- long %>%
-  distinct(log_sci, abs(rh_anc_pv), .keep_all = T)
+  distinct(scaled_sci, abs(fp_use_mod), .keep_all = T) %>% 
+  mutate(iso3_user = substr(GID_1, 1, 3),
+         iso3_fr = substr(fr_loc, 1, 3))
 
 
 # Add raw SCI as control --------------------------------------------------
 
-sci_controls <- c('scaled_sci', 'tertiale_sci', 'log_sci', 'sqrt_sci', sci_controls)
-
-# Define interaction effects ----------------------------------------------
-
-# dhs_controls_interaction <- crossing(dhs_controls, dhs_controls) %>% 
-#   mutate(interaction = paste0(dhs_controls...1,':',dhs_controls...2)) %>% 
-#   select(interaction) %>% 
-#   t %>% 
-#   as.vector
+sci_controls <- c('scaled_sci') 
 
 # Linear regression -------------------------------------------------------
 
-overview <- data.frame()
+key_control <- c('scaled_sci')
 
-for(i in dhs_targets){ #dhs_targets[grepl("rh_", dhs_targets)]
-  
-  temp <- long %>% 
-    select(i, dhs_controls, 
-           sci_controls, fb_controls, wp_controls, hdi_controls) %>% #, afr_controls
-    drop_na
-  
-  ### Scaled SCI only
-  results_scaled_sci <- lm(paste(i, '~ log_sci'), temp)
-  
-  ### SCI only
-  results_only_sci <- lm(paste(i, '~', 
-                               paste(sci_controls, collapse = '+')), temp)
-  
-  ### With SCI
-  results_all <- lm(paste(i, '~', 
-                          paste(dhs_controls, collapse = '+'), '+',
-                          paste(sci_controls, collapse = '+'), '+',
-                          paste(fb_controls, collapse = '+'), '+',
-                          paste(wp_controls, collapse = '+'), '+',
-                          # paste(afr_controls, collapse = '+'), '+',
-                          paste(sci_dhs_interaction, collapse = '+')), temp)
-  
-  ### Without interactions
-  results_no_interactions <- lm(paste(i, '~', 
-                                      paste(dhs_controls, collapse = '+'), '+',
-                                      paste(sci_controls, collapse = '+'), '+',
-                                      paste(fb_controls, collapse = '+'), '+',
-                                      # paste(afr_controls, collapse = '+'), '+',
-                                      paste(wp_controls, collapse = '+')), temp)
-  
-  ### Without SCI
-  results_no_sci <- lm(paste(i, '~', 
-                             paste(dhs_controls, collapse = '+'), '+',
-                             paste(fb_controls, collapse = '+'), '+',
-                             # paste(afr_controls, collapse = '+'), '+',
-                             paste(wp_controls, collapse = '+')), temp)
-  
-  ### Without WP
-  results_no_wp <- lm(paste(i, '~', 
-                            paste(dhs_controls, collapse = '+'), '+',
-                            paste(sci_controls, collapse = '+'), '+',
-                            paste(fb_controls, collapse = '+'), '+',
-                            # paste(afr_controls, collapse = '+'), '+',
-                            paste(sci_dhs_interaction, collapse = '+')), temp)
-  
-  ### Without FB
-  results_no_fb <- lm(paste(i, '~', 
-                            paste(dhs_controls, collapse = '+'), '+',
-                            paste(sci_controls, collapse = '+'), '+',
-                            paste(wp_controls, collapse = '+'), '+',
-                            # paste(afr_controls, collapse = '+'), '+',
-                            paste(sci_dhs_interaction, collapse = '+')), temp)
-  
-  ### Without Afrobarometer
-  results_no_afr <- lm(paste(i, '~', 
-                             paste(dhs_controls, collapse = '+'), '+',
-                             paste(sci_controls, collapse = '+'), '+',
-                             paste(fb_controls, collapse = '+'), '+',
-                             paste(wp_controls, collapse = '+'), '+',
-                             paste(sci_dhs_interaction, collapse = '+')), temp)
-  
-  ### Lucky shot
-  results_lucky <- lm(paste(i, '~', 
-                            paste(dhs_controls, collapse = '+'), '+',
-                            paste(sci_controls, collapse = '+'), '+',
-                            paste(fb_controls, collapse = '+'), '+',
-                            paste(wp_controls, collapse = '+'), '+',
-                            # paste(afr_controls, collapse = '+'), '+',
-                            paste(sci_dhs_interaction, collapse = '+')), 
-                      temp %>% 
-                        mutate(across(c(dhs_controls, sci_controls, fb_controls, wp_controls), #, afr_controls
-                                      ~ sample(.x, length(.x), replace = T)))
-  )
-  
-  temp <- data.frame(
-    target = i,
-    adj_r_scaled_sci = round(summary(results_scaled_sci)$adj.r.squared, digits = 2),
-    adj_r_only_sci = round(summary(results_only_sci)$adj.r.squared, digits = 2),
-    adj_r_all = round(summary(results_all)$adj.r.squared, digits = 2),
-    adj_r_no_interactions = round(summary(results_no_interactions)$adj.r.squared, digits = 2),
-    adj_r_no_sci = round(summary(results_no_sci)$adj.r.squared, digits = 2),
-    adj_r_no_wp = round(summary(results_no_wp)$adj.r.squared, digits = 2),
-    adj_r_no_fb = round(summary(results_no_fb)$adj.r.squared, digits = 2),
-    adj_r_no_afr = round(summary(results_no_afr)$adj.r.squared, digits = 2),
-    adj_r_lucky = round(summary(results_lucky)$adj.r.squared, digits = 2),
-    n_obs = nobs(results_all)
-  )
-  
-  overview <- overview %>% 
-    bind_rows(temp)
-  
-}
+basic_controls <- c("poorest +
+                poorer +
+                richer +
+                richest +
+                male +
+                secondary_or_higher + 
+                yes +
+                urban +
+                `(15,20]` +
+                `(20,25]` +
+                `(25,30]` +
+                `(30,35]` +
+                `(35,40]` +
+                `(40,45]` +
+                `(45,50]`")
 
-overview <- overview %>% 
-  mutate(diff = adj_r_all - adj_r_no_sci)
+country_controls <- c("iso3_user + iso3_fr")
 
+additional_controls <- c("Mean_of_Night_Light +
+                Mean_distance_to_major_rd +
+                Mean_built_settlement_growth +
+                FB_pntr_15to49_all")
 
-# Linear regression hand-picked -------------------------------------------
+### Use of modern contraception <> Knowledge about modern contraception
 
-i <- 'rh_anc_pv'
+i <- 'fp_use_mod'
+j <- 'fp_know_mod'
+interactions <- c(paste0(j,":",key_control))
 
 temp <- long %>% 
-  select(all_of(i), dhs_controls, 
-         sci_controls, 
-         fb_controls, 
-         wp_controls,
-         # afr_controls,
-         # hdi_controls, 
-         wp_controls) %>% 
+  select(GID_1,
+         all_of(i),
+         all_of(j),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3_user, iso3_fr) %>% 
   drop_na
 
-results <- lm(paste(i, '~
-  scaled_sci +
-  tertiale_sci +
-  log_sci +
-  sqrt_sci +
-  Mean_dist_to_SCI +
-  Mean_SCI_with_Self +
-  Mean_SCI_without_Self +
-  Mean_friendship +
-  Ratio_selfloop_to_africa + 
-  Ratio_SCI_low_hi_africa + 
-  Ratio_SCI_high_hi_africa +
-  poorest +
-  poorer +
-  middle +
-  richer +
-  richest +
-  female +
-  secondary_or_higher + 
-  has_mobile_phone_yes +
-  rural +
-  X15.19 +
-  X20.24 +
-  X25.29 +
-  X30.34 +
-  X35.39 +
-  X40.44 +
-  X45.49 +
-  Mean_of_Night_Light +
-  Mean_distance_to_major_rd +
-  FB_pntr_15to49_all +
-  female:has_mobile_phone_yes +
-  female:Mean_SCI_with_Self +
-  has_mobile_phone_yes:Mean_SCI_with_Self'), temp) 
+fp_use_mod_basic_fit <- lm(paste(i,' ~',j,'+',
+                      key_control,'+',
+                      basic_controls,'+',
+                      interactions), temp)
+fp_use_mod_additional_fit <- lm(paste(i,' ~',j,'+',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls,'+',
+                           interactions), temp)
+fp_use_mod_interaction_fit <- lmer(paste(i,' ~',j,'+',
+                            key_control,'+',
+                            basic_controls,'+',
+                            additional_controls,
+                            '+ (1 | iso3_user)+ (1 | iso3_fr) +',
+                            interactions), temp)
 
-summary(results)
+tab_model(fp_use_mod_basic_fit, fp_use_mod_additional_fit, fp_use_mod_interaction_fit)
 
-tab_model(results)
+  stargazer(fp_use_mod_basic_fit, fp_use_mod_additional_fit, fp_use_mod_interaction_fit, 
+          title="Results")
 
-results_only_sci <- lm(paste(i, '~', 
-                             paste(sci_controls, collapse = '+')), temp)
+### Using condom with non-partner <> Knowledge about HIV transmission
 
-results_hand <- lm(paste(i, '~', 
-                         paste(dhs_controls, collapse = '+'), '+',
-                         paste(sci_controls, collapse = '+'), '+',
-                         paste(fb_controls, collapse = '+'), '+',
-                         paste(hdi_controls, collapse = '+'), '+',
-                         paste(wp_controls, collapse = '+')),
-                   temp)
+i <- 'hk_cond_notprtnr'
+j <- 'hk_knw_linear_index'
+interactions <- c(paste0(j,":",key_control))
 
-results_hand_select <- stepAIC(results_hand, direction = "both", trace=FALSE)
+temp <- long %>% 
+  select(GID_1,
+         all_of(i),
+         all_of(j),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3_user, iso3_fr) %>% 
+  drop_na
 
-results_hand_no_sci <- lm(paste(i, '~', 
-                                paste(dhs_controls, collapse = '+'), '+',
-                                paste(fb_controls, collapse = '+')),
-                          temp)
+hk_cond_notprtnr_basic_fit <- lm(paste(i,' ~',
+                      key_control,'+',
+                      basic_controls,'+',
+                      j,'+',
+                      interactions), temp)
+hk_cond_notprtnr_additional_fit <- lm(paste(i,' ~',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls,'+',
+                           j,'+',
+                           interactions), temp)
+hk_cond_notprtnr_interaction_fit <- lmer(paste(i,' ~',
+                            key_control,'+',
+                            basic_controls,'+',
+                            j,'+',
+                            additional_controls,
+                            '+ (1 | iso3_user) + (1 | iso3_fr) +',
+                            interactions), temp)
 
-results_hand_select_no_sci <- stepAIC(results_hand_no_sci, direction = "both", trace=FALSE)
+tab_model(hk_cond_notprtnr_basic_fit, hk_cond_notprtnr_additional_fit, hk_cond_notprtnr_interaction_fit)
 
+### Ever tested on HIV <> Knowledge about HIV transmission
 
-### Lucky shot
-results_hand_lucky <- lm(paste(i, '~', 
-                          paste(dhs_controls, collapse = '+'), '+',
-                          paste(fb_controls, collapse = '+')), 
-                    temp %>% 
-                      mutate(across(c(dhs_controls, sci_controls, fb_controls), 
-                                    ~ sample(.x, length(.x), replace = T)))
-)
+i <- 'hk_test_ever'
+j <- 'hk_knw_linear_index'
+interactions <- c(paste0(j,":",key_control))
 
-results_hand_select_lucky <- stepAIC(results_hand_lucky, direction = "both", trace=FALSE)
+temp <- long %>% 
+  select(GID_1,
+         all_of(i),
+         all_of(j),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3_user, iso3_fr) %>% 
+  drop_na
 
-tab_model(results_hand_select, results_hand_select_no_sci, results_hand_select_lucky)
+hk_test_ever_basic_fit <- lm(paste(i,' ~',
+                                       key_control,'+',
+                                       basic_controls,'+',
+                                       j,'+',
+                                       interactions), temp)
+hk_test_ever_additional_fit <- lm(paste(i,' ~',
+                                            key_control,'+',
+                                            basic_controls,'+',
+                                            additional_controls,'+',
+                                            j,'+',
+                                            interactions), temp)
+hk_test_ever_interaction_fit <- lmer(paste(i,' ~',
+                                               key_control,'+',
+                                               basic_controls,'+',
+                                               j,'+',
+                                               additional_controls,
+                                               '+ (1 | iso3_user) + (1 | iso3_fr) +',
+                                               interactions), temp)
 
-# Linear regression with model selection ----------------------------------
+tab_model(hk_test_ever_basic_fit, hk_test_ever_additional_fit, hk_test_ever_interaction_fit)
 
-overview_select <- data.frame()
+stargazer(hk_test_ever_basic_fit, hk_test_ever_additional_fit, hk_test_ever_interaction_fit,
+          title="Results")
 
-for(i in dhs_targets[!grepl("_male_", dhs_targets)]){
-  
-  temp <- dat %>% 
-    select(i, dhs_controls, sci_controls, fb_controls) %>% 
-    drop_na
-  
-  results_select_all <- lm(paste(i, '~', 
-                                 paste(dhs_controls, collapse = '+'), '+',
-                                 paste(sci_controls, collapse = '+'), '+',
-                                 paste(fb_controls, collapse = '+')),
-                           temp)
-  
-  results_select <- stepAIC(results_select_all, direction = "both", trace=FALSE)
-  
-  results_select_all_no_sci <- lm(paste(i, '~', 
-                                        paste(dhs_controls, collapse = '+'), '+',
-                                        paste(fb_controls, collapse = '+')),
-                                  temp)
-  
-  results_select_no_sci <- stepAIC(results_select_all_no_sci, direction = "both", trace=FALSE)
-  
-  temp <- data.frame(
-    target = i,
-    adj_r_sci = round(summary(results_select)$adj.r.squared, digits = 2),
-    adj_r_no_sci = round(summary(results_select_no_sci)$adj.r.squared, digits = 2),
-    n_obs = nobs(results_select),
-    n_pred_sci = summary(results_select)$df[1] - 1,
-    n_pred_no_sci = summary(results_select_no_sci)$df[1] - 1
-  )
-  
-  overview_select <- overview_select %>% 
-    bind_rows(temp)
-  
-}
+### Knowledge about modern contraception <> SCI
 
-overview_select <- overview_select %>% 
-  mutate(diff = adj_r_sci - adj_r_no_sci)
+i <- 'fp_know_mod'
 
+temp <- long %>% 
+  select(GID_1,
+         all_of(i),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3_user, iso3_fr) %>% 
+  drop_na
 
+fp_know_mod_basic_fit <- lm(paste(i,' ~',
+                      key_control,'+',
+                      basic_controls), temp)
+fp_know_mod_additional_fit <- lm(paste(i,' ~',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls), temp)
+fp_know_mod_interaction_fit <- lmer(paste(i,' ~',
+                              key_control,'+',
+                              basic_controls,'+',
+                            additional_controls,
+                            '+ (1 | iso3_user) + (1 | iso3_fr)'), temp)
 
-# Cross-Validation --------------------------------------------------------
+tab_model(fp_know_mod_basic_fit, fp_know_mod_additional_fit, fp_know_mod_interaction_fit)
 
-for(i in dhs_targets){
-  
-  temp <- long %>% 
-    select(all_of(i), dhs_controls, sci_controls, fb_controls, wp_controls) %>% 
-    drop_na
-  
-  fitControl <- trainControl(
-    method = "repeatedcv",
-    number = 10,
-    repeats = 10)
-  
-  fit <- train(formula(paste0(i, '~',  
-                              paste(sci_controls, collapse = '+'), '+',
-                              paste(dhs_controls, collapse = '+'), '+',
-                       paste(fb_controls, collapse = '+'), '+',
-               paste(wp_controls, collapse = '+'))), 
-               data = temp, 
-               method = "lm", #svmRadial #gbm #rf #gaussprRadial #qrf
-               trControl = fitControl,
-               verbose = FALSE)
-  
-  fit
-  
-  }
+stargazer(fp_know_mod_basic_fit, fp_know_mod_additional_fit, fp_know_mod_interaction_fit,
+          title="Results")
+
+### Knowledge about HIV transmission <> SCI
+
+i <- 'hk_knw_linear_index'
+
+temp <- long %>% 
+  select(GID_1,
+         all_of(i),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3_user, iso3_fr) %>% 
+  drop_na
+
+hk_knw_linear_index_basic_fit <- lm(paste(i,' ~',
+                      key_control,'+',
+                      basic_controls), temp)
+hk_knw_linear_index_additional_fit <- lm(paste(i,' ~',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls), temp)
+hk_knw_linear_index_interaction_fit <- lmer(paste(i,' ~',
+                              key_control,'+',
+                              basic_controls,'+',
+                            additional_controls,
+                            '+ (1 | iso3_user) + (1 | iso3_fr)'), temp)
+
+tab_model(hk_knw_linear_index_basic_fit, hk_knw_linear_index_additional_fit, hk_knw_linear_index_interaction_fit)
+
+stargazer(hk_knw_linear_index_basic_fit, hk_knw_linear_index_additional_fit, hk_knw_linear_index_interaction_fit,
+          title="Results")
+
+# Get final table
+# tab_model(fp_use_mod_interaction_fit, 
+#           hk_cond_notprtnr_interaction_fit, 
+#           hk_test_ever_interaction_fit,
+#           fp_know_mod_interaction_fit, 
+#           hk_knw_linear_index_interaction_fit)
+
+tab_model(fp_use_mod_interaction_fit, 
+          hk_test_ever_interaction_fit,
+          fp_know_mod_interaction_fit, 
+          hk_knw_linear_index_interaction_fit)
+
+class(fp_use_mod_interaction_fit) <- "lmerMod"
+class(hk_test_ever_interaction_fit) <- "lmerMod"
+class(fp_know_mod_interaction_fit) <- "lmerMod"
+class(hk_knw_linear_index_interaction_fit) <- "lmerMod"
+
+stargazer(fp_use_mod_interaction_fit, 
+          hk_test_ever_interaction_fit, 
+          fp_know_mod_interaction_fit, 
+          hk_knw_linear_index_interaction_fit, 
+          title="Results")
+
+stargazer(fp_use_mod_interaction_fit, 
+          hk_cond_notprtnr_interaction_fit,
+          title="Results")

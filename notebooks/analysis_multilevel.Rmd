@@ -1,0 +1,734 @@
+---
+title: "Node analysis of social connectedness and health inequalities"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+Following up on our discussion last week, we now look at five things specifically:
+
+1. Reduce multicollinearity by using just one SCI variable and no interactions
+2. Adding countries not as random, but fixed effects
+3. Consider moving to multi-level modelling
+4. Avoid overfitting by using the HDI as the only control (besides SCI and countries)
+5. Focus on outcomes related to sexual and reproductive health. This means dropping child vaccination outcomes and adding outcomes on knowledge and behaviour related to HIV and FGM
+
+### Relevant libraries
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)    # Data wrangling
+library(sf)           # Spatial analysis
+library(caret)        # For machine learning and preprocessing
+library(spdep)        # For spatial analysis
+library(spatialreg)   # For spatial regressions
+library(olsrr)        # For OLS residual diagnostics
+library(lme4)         # For random effects models
+library(lmerTest)     # For approximated p-values in mixed models
+library(ggplot2)      # Visualizations
+library(broom)        # For data.frame-like summary outputs
+library(survey)        # For weighted modelling
+
+library(sjPlot)       # for tab_model function
+
+library(stargazer)   # for latex output
+
+select <- dplyr::select
+```
+
+### Relevant data
+
+```{r message=FALSE, warning=FALSE}
+# Map data
+afr_dat <- st_read(dsn = "/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_geometries.gpkg") %>% 
+  st_make_valid() %>% 
+  st_transform(4326)
+
+# Social Connectedness Index
+sci <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/sci_indices.csv") %>% 
+  distinct(user_loc, .keep_all = T)
+
+# Worldpop covariates
+wp <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/wp.csv") %>% 
+  distinct(GID_1, .keep_all = T)
+
+# Human Development Index
+hdi <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/hdi.csv") %>% 
+  distinct(GID_1, .keep_all = T)
+
+# Facebook covariates
+fb <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/fb.csv") %>% 
+  distinct(GID_1, .keep_all = T)
+
+# DHS data
+dhs <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health_individual.csv')
+
+# DHS aggregate data
+dhs_agg <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health.csv')
+
+# Afrobarometer
+afr <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/afrobarometer.csv') %>% 
+  distinct(GID_1, .keep_all = T)
+
+# Centrality measures
+sci_cen <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/all_centrality_measures.csv') %>% 
+  rename(GID_1 = user_loc)
+
+```
+### Defining targets and controls
+
+Let's define our targets and controls:
+```{r}
+### Define targets
+dhs_targets <- dhs %>% 
+  select(fp_use_mod, hk_cond_notprtnr, hk_test_ever, fp_know_mod, 
+         hk_knw_linear_index, hk_knw_any, hk_knw_comphsv) %>% 
+  # select(fp_use_mod, hk_cond_notprtnr) %>% #excluded as they either reduce sample size or they are out of the 0-1 range
+  # select(fp_know_any, fp_know_mod, hk_ever_heard, hk_knw_risk_sex, hk_knw_risk_cond) %>% 
+  names()
+
+### Define controls
+dhs_controls <- c(
+  'v104', # gender
+  'v012', # age
+  'v025', # urban/rural
+  'v106', # highest educational level
+  'v243a', # mobile phone ownership
+  'v270' # wealth index by quintiles
+  # "hk_knw_linear_index",
+  # "hk_knw_any",
+  # "hk_knw_comphsv"
+)
+
+sci_controls <- c('Mean_dist_to_SCI_km', # Average distance of friendships
+                  'Median_dist_to_SCI_km', # Average distance of friendships
+                  'Std_dist_to_SCI_km', # Clustering measure of friendships across distances
+                  'Total_dist_to_SCI_km', # Total distance of friendships
+                  'Ratio_selfloop_to_country', # Share of local friendships within the same country
+                  'Ratio_selfloop_to_africa', # Share of local friendships that stay within Africa
+                  'Ratio_selfloop_to_all_sci', # Share of local friendships of all friendships
+                  'Average_distance_of_friendships_km', 
+                  'Mean_SCI_without_Self', # Average probability of friendships with other regions
+                  'Median_SCI_without_Self', # Average probability of friendships with other regions
+                  'Std_SCI_without_Self', # Clustering measure for the probability of friendships with other regions
+                  'Mean_SCI_with_Self', # Average probability of friendships across all regions
+                  'Median_SCI_with_Self', # Average probability of friendships across all regions
+                  'Std_SCI_with_Self', # Average probability of friendships across all regions
+                  'Mean_friendship', # Average friendships per FB users
+                  'Median_friendship', # Average friendships per FB users
+                  'Std_friendship', # Clustering measure for friendships per FB user
+                  'Total_friendship', # Sum of friendships per FB user 
+                  'Ratio_SCI_low_hi_africa', # Share of friendships to regions with a low health index
+                  'Ratio_SCI_middle_hi_africa', # Share of friendships to regions with a medium health index
+                  'Ratio_SCI_high_hi_africa' # Share of friendships to regions with a high health index
+)
+
+hdi_controls <- c('HDI')
+
+wp_controls <- c(
+  'Mean_of_Night_Light',
+  'Std_of_Night_Light',
+  'Mean_distance_to_major_rd_intersection',
+  'Std_distance_to_major_rd_intersection',
+  'Mean_distance_to_major_rd',
+  'Std_distance_to_major_rd',
+  "Mean_distance_to_inland_water",
+  "Std_distance_to_inland_water",
+  "Mean_built_settlement_growth",
+  "Std_built_settlement_growth")
+
+fb_controls <- c('fb_rwi_mean',
+                 'fb_rwi_mean_pop_wght',
+                 'FB_pntr_15to49_female',
+                 'FB_pntr_15to49_all')
+
+afr_controls <- c('member_community',
+                  'trpar',
+                  'trtax',
+                  'trgov',
+                  'trlaw',
+                  'trgen',
+                  'trrel',
+                  'trnei',
+                  'tracq',
+                  'railway_contact',
+                  'explorer_contact',
+                  'district_ethnic_frac',
+                  'loc_ln_export_area')
+
+cen_controls <- c('degree',
+                  'betweenness',
+                  'closeness')
+```
+
+
+
+
+We then merge datasets and create the country dummy:
+```{r}
+dat <- dhs %>% 
+  select(pid,
+         v021,
+         strata,
+         wt,
+         GID_1 = gid_1,
+         all_of(dhs_targets),
+         all_of(dhs_controls)) %>% 
+  left_join(sci %>% 
+              select(GID_1 = user_loc,
+                     all_of(sci_controls)),
+            by = 'GID_1') %>% 
+  left_join(hdi %>% 
+              select(GID_1,
+                     all_of(hdi_controls)),
+            by = 'GID_1') %>% 
+  left_join(wp %>% 
+              drop_na(GID_1) %>% 
+              select(GID_1,
+                     all_of(wp_controls)),
+            by = 'GID_1') %>% 
+  left_join(fb %>% 
+              select(GID_1,
+                     all_of(fb_controls)),
+            by = 'GID_1') %>% 
+  left_join(afr %>% 
+              select(GID_1,
+                     all_of(afr_controls)),
+            by = 'GID_1') %>% 
+  left_join(sci_cen %>% 
+              select(GID_1,
+                     all_of(cen_controls)),
+            by = 'GID_1') %>% 
+  mutate(iso3 = substr(GID_1, 1, 3))
+```
+
+Here an overview of the variables we now have in our dataset:
+```{r}
+dim(dat)
+names(dat)
+```
+
+A description of the variables can be found [here](https://drive.google.com/file/d/1vCgciS4_zMz6hs5SoRl8_5yxP5drHt1C/view?usp=sharing).
+
+### Summary statistics
+
+Let's look at summary statistics of a few handpicked 
+
+```{r}
+dat %>% 
+  select(all_of(dhs_targets)) %>% 
+  summary()
+```
+
+#### Preprocessing
+
+Before we start looking at spatial autocorrelation and other modelling outcomes, we need to prepare our final dataset.
+
+We center and scale SCI and WP features
+```{r}
+# Center and scale SCI variables
+dat <- dat %>% 
+  mutate(across(all_of(sci_controls), ~ scale(.x, scale = T)),
+         across(all_of(wp_controls), ~ scale(.x, scale = T)),
+         across(all_of(cen_controls), ~ scale(.x, scale = T))
+         )
+```
+
+
+#### Modelling approaches
+
+We have tried couple of different approaches, none produces really desirable results. Two main scenarios emerged:
+
+Scenario 1: If we use 'Mean_friendship' as SCI measure, we get significant effects for 11 out of 33 health outcomes (most of them related to HIV knowledge, with quite strong effect sizes all in a positive direction: higher SCI -> more knowledge) when using the complex control setup incl. interaction effects.
+
+Scenario 2: If we use 'Median_SCI_without_self' as SCI measure, we get significant effects for 21 out of 33 health outcomes (across topics, quite weak effects in different directions, which however "make sense") when using the HDI setup.
+
+Both scenarios are not robust across samples or minor changes in specifications (e.g. adding/removing interaction effects)
+
+Same observations hold true when using the general trust variable instead of the SCI.
+
+Here a summary of the results for the first scenario:
+
+```{r}
+
+key_control <- c('Mean_SCI_with_Self')
+
+basic_controls <- c(" +
+              v104 +
+              v012 +
+              v025 +
+              v106 +
+              v243a +
+              v270")
+
+country_controls <- c("iso3")
+
+additional_controls <- c("Mean_of_Night_Light +
+                Mean_distance_to_major_rd +
+                Mean_built_settlement_growth +
+                FB_pntr_15to49_all +
+                v243a:Mean_SCI_with_Self")
+
+### Use of modern contraception <> Knowledge about modern contraception
+
+i <- 'fp_use_mod'
+j <- 'fp_know_mod'
+interactions <- c(paste0(j,":",key_control))
+
+temp <- dat %>% 
+  select(v021,
+           strata,
+           wt,
+           GID_1,
+         all_of(i),
+         all_of(j),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3) %>% 
+  drop_na
+
+  DHSdesign <- svydesign(ids = temp$v021, strata=temp$strata, weights = temp$wt, nest=TRUE, data=temp)
+  
+  options(survey.adjust.domain.lonely=TRUE)
+  options(survey.lonely.psu="adjust")
+
+fp_use_mod_basic_fit <- svyglm(formula(paste(i,' ~',j,'+',
+                      key_control,'+',
+                      basic_controls,'+',
+                      interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+fp_use_mod_additional_fit <- svyglm(formula(paste(i,' ~',j,'+',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls,'+',
+                           interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+fp_use_mod_interaction_fit <- svyglm(formula(paste(i,' ~',j,'+',
+                            key_control,'+',
+                            basic_controls,'+',
+                            additional_controls,'+',
+                            country_controls,'+',
+                            interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+tab_model(fp_use_mod_basic_fit, fp_use_mod_additional_fit, fp_use_mod_interaction_fit)
+
+### Using condom with non-partner <> Knowledge about HIV transmission
+
+i <- 'hk_cond_notprtnr'
+j <- 'hk_knw_linear_index'
+interactions <- c(paste0(j,":",key_control))
+
+temp <- dat %>% 
+  select(v021,
+           strata,
+           wt,
+           GID_1,
+         all_of(i),
+         all_of(j),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3) %>% 
+  drop_na
+
+  DHSdesign <- svydesign(ids = temp$v021, strata=temp$strata, weights = temp$wt, nest=TRUE, data=temp)
+  
+  options(survey.adjust.domain.lonely=TRUE)
+  options(survey.lonely.psu="adjust")
+
+hk_cond_notprtnr_basic_fit <- svyglm(formula(paste(i,' ~',
+                      key_control,'+',
+                      basic_controls,'+',
+                      j,'+',
+                      interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+hk_cond_notprtnr_additional_fit <- svyglm(formula(paste(i,' ~',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls,'+',
+                           j,'+',
+                           interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+hk_cond_notprtnr_interaction_fit <- svyglm(formula(paste(i,' ~',
+                            key_control,'+',
+                            basic_controls,'+',
+                            j,'+',
+                            additional_controls,'+',
+                            country_controls,'+',
+                            interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+tab_model(hk_cond_notprtnr_basic_fit, hk_cond_notprtnr_additional_fit, hk_cond_notprtnr_interaction_fit)
+
+### Ever tested on HIV <> Knowledge about HIV transmission
+
+i <- 'hk_test_ever'
+j <- 'hk_knw_linear_index'
+interactions <- c(paste0(j,":",key_control))
+
+temp <- dat %>% 
+  select(v021,
+           strata,
+           wt,
+           GID_1,
+         all_of(i),
+         all_of(j),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3) %>% 
+  drop_na
+
+  DHSdesign <- svydesign(ids = temp$v021, strata=temp$strata, weights = temp$wt, nest=TRUE, data=temp)
+  
+  options(survey.adjust.domain.lonely=TRUE)
+  options(survey.lonely.psu="adjust")
+
+hk_test_ever_basic_fit <- svyglm(formula(paste(i,' ~',
+                      key_control,'+',
+                      basic_controls,'+',
+                      j,'+',
+                      interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+hk_test_ever_additional_fit <- svyglm(formula(paste(i,' ~',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls,'+',
+                           j,'+',
+                           interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+hk_test_ever_interaction_fit <- svyglm(formula(paste(i,' ~',
+                            key_control,'+',
+                            basic_controls,'+',
+                            j,'+',
+                            additional_controls,'+',
+                            country_controls,'+',
+                            interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+tab_model(hk_test_ever_basic_fit, hk_test_ever_additional_fit, hk_test_ever_interaction_fit)
+
+### Knowledge about modern contraception <> SCI
+
+i <- 'fp_know_mod'
+
+temp <- dat %>% 
+  select(v021,
+           strata,
+           wt,
+           GID_1,
+         all_of(i),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3) %>% 
+  drop_na
+
+  DHSdesign <- svydesign(ids = temp$v021, strata=temp$strata, weights = temp$wt, nest=TRUE, data=temp)
+  
+  options(survey.adjust.domain.lonely=TRUE)
+  options(survey.lonely.psu="adjust")
+
+fp_know_mod_basic_fit <- svyglm(formula(paste(i,' ~',
+                      key_control,'+',
+                      basic_controls)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+fp_know_mod_additional_fit <- svyglm(formula(paste(i,' ~',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+fp_know_mod_interaction_fit <- svyglm(formula(paste(i,' ~',
+                              key_control,'+',
+                              basic_controls,'+',
+                            additional_controls,'+',
+                            country_controls)),
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+tab_model(fp_know_mod_basic_fit, fp_know_mod_additional_fit, fp_know_mod_interaction_fit)
+
+### Knowledge about HIV transmission <> SCI
+
+i <- 'hk_knw_linear_index'
+
+temp <- dat %>% 
+  select(v021,
+           strata,
+           wt,
+           GID_1,
+         all_of(i),
+         all_of(dhs_controls), 
+         all_of(sci_controls), 
+         all_of(fb_controls), 
+         all_of(wp_controls),
+         iso3) %>% 
+  drop_na
+
+  DHSdesign <- svydesign(ids = temp$v021, strata=temp$strata, weights = temp$wt, nest=TRUE, data=temp)
+  
+  options(survey.adjust.domain.lonely=TRUE)
+  options(survey.lonely.psu="adjust")
+
+hk_knw_linear_index_basic_fit <- svyglm(formula(paste(i,' ~',
+                      key_control,'+',
+                      basic_controls)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+hk_knw_linear_index_additional_fit <- svyglm(formula(paste(i,' ~',
+                           key_control,'+',
+                           basic_controls,'+',
+                           additional_controls)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+hk_knw_linear_index_interaction_fit <- svyglm(formula(paste(i,' ~',
+                              key_control,'+',
+                              basic_controls,'+',
+                            additional_controls,'+',
+                            country_controls)),
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+tab_model(hk_knw_linear_index_basic_fit, hk_knw_linear_index_additional_fit, hk_knw_linear_index_interaction_fit)
+
+# Get final table
+tab_model(fp_use_mod_interaction_fit, 
+          # hk_cond_notprtnr_interaction_fit, 
+          hk_test_ever_interaction_fit, 
+          fp_know_mod_interaction_fit, 
+          hk_knw_linear_index_interaction_fit)
+
+# class(fp_use_mod_interaction_fit) <- "lmerMod"
+# class(hk_cond_notprtnr_interaction_fit) <- "lmerMod"
+# class(hk_test_ever_interaction_fit) <- "lmerMod"
+# class(fp_know_mod_interaction_fit) <- "lmerMod"
+# class(hk_knw_linear_index_interaction_fit) <- "lmerMod"
+```
+
+
+
+
+
+```{r message=FALSE, warning=FALSE}
+basic_controls <- c('Mean_SCI_with_Self +
+              v104 +
+              v012 +
+              v025 +
+              v106 +
+              v243a +
+              v270')
+
+country_controls <- c('iso3')
+
+additional_controls <- c('Mean_of_Night_Light +
+              Mean_distance_to_major_rd +
+              Mean_built_settlement_growth +
+              FB_pntr_15to49_all')
+
+interactions <- c("v243a:Mean_SCI_with_Self")
+
+ols_long_ia <- data.frame()
+
+for(i in dhs_targets){
+  
+  temp <- dat %>% 
+    select(v021,
+           strata,
+           wt,
+           GID_1,
+           all_of(i),
+           all_of(dhs_controls), 
+           all_of(sci_controls), 
+           all_of(fb_controls), 
+           # afr_controls,
+           # all_of(hdi_controls), 
+           all_of(wp_controls),
+           all_of(cen_controls),
+           iso3) %>% 
+    drop_na
+
+  DHSdesign <- svydesign(ids = temp$v021, strata=temp$strata, weights = temp$wt, nest=TRUE, data=temp)
+  
+  options(survey.adjust.domain.lonely=TRUE)
+  options(survey.lonely.psu="adjust")
+  
+  summary_fit <- svyglm(formula(paste(i,'~',
+                          basic_controls,'+',
+                          additional_controls,'+',
+                          country_controls,'+',
+                          interactions)), 
+                   family = binomial(link="logit"),
+                   design = DHSdesign) %>% 
+    summary
+  
+  ols_long_ia <- summary_fit$coefficients %>% 
+    as.data.frame() %>% 
+    select(estimate = Estimate, 'Pr(>|t|)') %>% 
+    rename(p.value = 'Pr(>|t|)') %>% 
+  rownames_to_column('term') %>% 
+  filter(term == 'Mean_SCI_with_Self'|
+         term == 'degree') %>% 
+  select(estimate, p.value, term) %>% 
+  mutate(outcome = i,
+         significant_5p = ifelse(p.value <= 0.05, 'yes', 'no'),
+         significant_1p = ifelse(p.value <= 0.01, 'yes', 'no')) %>% 
+    bind_rows(ols_long_ia)
+}
+
+ols_long_ia %>% 
+  arrange(desc(significant_5p))
+```
+
+```{r}
+# basic_fit <- svyglm(formula(paste('hk_cond_notprtnr ~',basic_controls,'+',
+#                           interactions)), 
+#                    family = quasibinomial(link="logit"),
+#                    design = DHSdesign)
+# additional_fit <- svyglm(formula(paste('hk_cond_notprtnr~',basic_controls,'+',
+#                           additional_controls,'+',
+#                           interactions)), 
+#                    family = quasibinomial(link="logit"),
+#                    design = DHSdesign)
+
+DHSdesign <- svydesign(ids = dat$v021, strata=dat$strata, weights = dat$wt, nest=TRUE, data=dat)
+
+options(survey.adjust.domain.lonely=TRUE)
+options(survey.lonely.psu="adjust")
+
+fp_know_mod_basic_fit <- svyglm(formula(paste('fp_know_mod~',
+                          basic_controls,'+',
+                          additional_controls,'+',
+                          country_controls)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+hk_knw_linear_index_basic_fit <- svyglm(formula(paste('hk_knw_linear_index~',
+                          basic_controls,'+',
+                          additional_controls,'+',
+                          country_controls)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+fp_know_mod_interaction_fit <- svyglm(formula(paste('fp_know_mod~',
+                          basic_controls,'+',
+                          additional_controls,'+',
+                          country_controls,'+',
+                          interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+hk_knw_linear_index_interaction_fit <- svyglm(formula(paste('hk_knw_linear_index~',
+                          basic_controls,'+',
+                          additional_controls,'+',
+                          country_controls,'+',
+                          interactions)), 
+                   family = quasibinomial(link="logit"),
+                   design = DHSdesign)
+
+tab_model(fp_know_mod_basic_fit, hk_knw_linear_index_basic_fit, fp_know_mod_interaction_fit, hk_knw_linear_index_interaction_fit)
+```
+
+Here the summary of results for the second scenario:
+
+```{r message=FALSE, warning=FALSE}
+controls_short <- c('Mean_SCI_with_Self +
+                    HDI + 
+                    hk_knw_comphsv +
+                    hk_knw_comphsv:Mean_SCI_with_Self +
+                    iso3')
+
+temp_short <- dat %>% 
+  select(pid, 
+         v021,
+         strata,
+         wt,
+         GID_1,
+         all_of(dhs_targets),
+         all_of(dhs_controls),
+         all_of(sci_controls), 
+         all_of(hdi_controls), 
+         iso3) %>% 
+  drop_na
+
+DHSdesign_short <- svydesign(ids = temp_short$v021, strata=temp_short$strata, weights = temp_short$wt, nest=TRUE, data=temp_short)
+
+options(survey.adjust.domain.lonely=TRUE)
+options(survey.lonely.psu="adjust")
+
+ols_short <- data.frame()
+
+for(i in dhs_targets){
+  summary_fit <- svyglm(formula(paste(i,'~',controls_short)), 
+                   family = binomial(link="logit"),
+                   design = DHSdesign_short) %>% 
+    summary
+  
+  ols_short <- summary_fit$coefficients %>% 
+    as.data.frame() %>% 
+    select(estimate = Estimate, 'Pr(>|t|)') %>% 
+    rename(p.value = 'Pr(>|t|)') %>% 
+  rownames_to_column('term') %>% 
+  filter(term == 'Median_SCI_without_Self') %>% 
+  select(estimate, p.value) %>% 
+  mutate(outcome = i,
+         significant_5p = ifelse(p.value <= 0.05, 'yes', 'no'),
+         significant_1p = ifelse(p.value <= 0.01, 'yes', 'no')) %>% 
+    bind_rows(ols_short)
+}
+
+ols_short %>% 
+  arrange(desc(significant_5p))
+```
+
+Let's look at the regression output of the two scenarios, exemplified using **hk_knw_risk_cond** ('Know you can reduce HIV risk by using condoms at every sex')
+
+```{r}
+fit_hk_knw_risk_cond_short <- svyglm(formula(paste('hk_knw_risk_cond~',controls_short)), 
+                   family = binomial(link="logit"),
+                   design = DHSdesign_short)
+
+fit_hk_knw_risk_cond_long <- svyglm(formula(paste('hk_knw_risk_cond~',controls,'+ iso3')), 
+                   family = binomial(link="logit"),
+                   design = DHSdesign)
+
+tab_model(fit_hk_knw_risk_cond_long, fit_hk_knw_risk_cond_short)
+```
+
+
+As expected, here the part of variation explained by the random intercept is even higher. Let's look at the residuals now.
+
+```{r}
+par(mfrow = c(1, 2))
+plot(fitted(fit_hk_knw_risk_cond_long), resid(fit_hk_knw_risk_cond_long), col = 'green', main = 'Scenario 1')
+plot(fitted(fit_hk_knw_risk_cond_short), resid(fit_hk_knw_risk_cond_short), col = 'blue', main = 'Scenario 2')
+```
+
+It seems that the random intercept largely reduces heterogeneity in the sample. We now look at the normality of the residuals via a qq-plot.
+
+```{r}
+par(mfrow = c(1, 2))
+hist(resid(fit_hk_knw_risk_cond_long), 
+     main = "Scenario 1", prob=TRUE, col = 'green')
+lines(density(resid(fit_hk_knw_risk_cond_long)))
+hist(resid(fit_hk_knw_risk_cond_short), 
+     main = "Scenario 2", prob=TRUE, col = 'blue')
+lines(density(resid(fit_hk_knw_risk_cond_short)))
+
+```
