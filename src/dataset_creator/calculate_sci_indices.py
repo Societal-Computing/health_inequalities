@@ -17,6 +17,7 @@ from utils.helper_functions import worksheet_reader
 class SCI_Indices_Calculator:
     CRS = "EPSG:4326"
     CRS_4_DISTANCE = "EPSG:3857"
+    SCI_MUL =  1000000000
 
     QUANTILES = ["Ratio_SCI_low_hi_africa", "Ratio_SCI_middle_hi_africa", "Ratio_SCI_high_hi_africa"]
 
@@ -26,7 +27,7 @@ class SCI_Indices_Calculator:
         lmic_shapefile = gpd.read_file(all_shapefile_path)
         fb_data = pd.read_csv(fb_dataset_path)
         self.gadm1_dhs_dataset = lmic_shapefile.merge(fb_data, on='GID_1', how='inner')[
-            ["GID_1", "geometry", "All_devices_age_13_plus_all_genders"]]
+            ["GID_1", "geometry","All_devices_age_13_plus_all_genders"]]
         self.health_index_dataset_path = health_index_dataset_path
 
     @staticmethod
@@ -112,7 +113,7 @@ class SCI_Indices_Calculator:
         sci_dataset['distance'] = sci_dataset.apply(lambda x: 0.1 if x['distance'] <= 0 else x['distance'], axis=1)
 
         sci_dataset.drop(columns=["fr_loc_centroid", "user_loc_centroid", "geometry"], inplace=True)
-
+        
         new_data = sci_dataset.groupby(['user_loc']).apply(
             lambda x: np.average(x['distance'], weights=x['scaled_sci'])).reset_index()
         new_data.rename(columns={0: 'Average_distance_of_friendships_km'}, inplace=True)
@@ -151,6 +152,10 @@ class SCI_Indices_Calculator:
                                                             Local_std_SCI=('scaled_sci', np.std)).reset_index()
 
         logger.info("Computation of country constrained features completed!")
+        # Wed divide SCI by 1000000000 since it was scaled
+        sci_dataset['Local_sum_SCI'] = sci_dataset['Local_sum_SCI']
+        sci_dataset['Local_mean_SCI'] = sci_dataset['Local_mean_SCI']
+        sci_dataset['Local_std_SCI'] = sci_dataset['Local_std_SCI'] 
         return sci_dataset
 
     @staticmethod
@@ -160,11 +165,11 @@ class SCI_Indices_Calculator:
         sci_dataset = sci_dataset.copy()
         sci_dataset = gadm1_dataset.merge(sci_dataset, left_on='GID_1', right_on='fr_loc', how='inner')
         sci_dataset['new_sci'] = sci_dataset['All_devices_age_13_plus_all_genders'] * sci_dataset['scaled_sci']
-        agg_destination_sci_data = sci_dataset.groupby('user_loc').agg(Mean_friendship=('scaled_sci', np.mean),
-                                                                       Median_friendship=('scaled_sci', np.median),
-                                                                       Std_friendship=('scaled_sci', np.std),
+        agg_destination_sci_data = sci_dataset.groupby('user_loc').agg(Mean_friendship=('new_sci', np.mean),
+                                                                       Median_friendship=('new_sci', np.median),
+                                                                       Std_friendship=('new_sci', np.std),
                                                                        Total_friendship=(
-                                                                           'scaled_sci', np.sum)).reset_index()
+                                                                           'new_sci', np.sum)).reset_index()
         logger.info("Friendship share calculation completed !")
         return agg_destination_sci_data
 
@@ -213,37 +218,6 @@ class SCI_Indices_Calculator:
         agg_raw_sci = agg_raw_sci.pivot(index='user_loc', columns='quantiles', values='HI_ratio').reset_index()
         return agg_raw_sci.reset_index(drop=True)
 
-    @classmethod
-    def dhsData_sciData_with_healthInequalities(cls, dhs_data_path: str or Path,
-                                                gadm_data: pd.DataFrame) -> pd.DataFrame:
-        health_inequalities = worksheet_reader(dhs_data_path)
-        gadm_data = gadm_data.copy()
-        sci_health_data = health_inequalities.merge(gadm_data, on='GID_1', how="left")
-        return sci_health_data
-
-    def combine_dhs_health_ineq(self, dhs_sci_dataset, dhs_dataset_path):
-        # combination with health inequalities data
-        dhs_sci_dataset = dhs_sci_dataset[
-            ['GID_1', 'COUNTRY', 'Mean_SCI_with_Self', 'Median_SCI_with_Self', 'Std_SCI_with_Self', 'SCI',
-             'Mean_SCI_without_Self', 'Median_SCI_without_Self', 'Std_SCI_without_Self',
-             'Intraconnection_index', 'LMIC_interconnection_index', 'geometry']
-        ]
-        dhs_sci_health = self.dhsData_sciData_with_healthInequalities(dhs_dataset_path, dhs_sci_dataset)
-        # remove duplicates in data
-        dhs_sci_health = dhs_sci_health.T.drop_duplicates().T
-        dhs_sci_health = gpd.GeoDataFrame(dhs_sci_health, crs=self.CRS)
-        # dhs_sci_health.to_file(saving_path, driver="GPKG")
-        return dhs_sci_health
-
-    @staticmethod
-    def correction_of_GID_for_special_case(row: pd.Series):
-        if row['GID_1'][:3] == 'COM':
-            return 'COM'
-        elif row['GID_1'][:3] == 'CPV':
-            return 'CPV'
-        else:
-            return row['GID_1']
-
     def main(self):
         sci_dataset = self.sci_dataset.copy()
         gadm1_dataset = self.gadm1_dhs_dataset.copy()
@@ -273,8 +247,7 @@ class SCI_Indices_Calculator:
         distance_nd_avg_sc = avg_median_std__with_agg_sci.merge(distance_between_sci, on='user_loc',
                                                                 how='inner').reset_index()
         sci_features = distance_nd_avg_sc.merge(regional_ratios, on="user_loc", how="inner")
-        sci_features = sci_features[['user_loc', 'Mean_friendship', 'Median_friendship', 'Std_friendship',
-                                     'Total_friendship', 'Mean_SCI_with_Self', 'Median_SCI_with_Self',
+        sci_features = sci_features[['user_loc','Mean_friendship', 'Median_friendship','Std_friendship' ,'Total_friendship' ,'Mean_SCI_with_Self', 'Median_SCI_with_Self',
                                      'Std_SCI_with_Self', 'SCI', 'Mean_SCI_without_Self', 'Median_SCI_without_Self',
                                      'Std_SCI_without_Self', 'Mean_dist_to_SCI_km', 'Median_dist_to_SCI_km',
                                      'Std_dist_to_SCI_km', 'Total_dist_to_SCI_km', 'Ratio_selfloop_to_country',
@@ -283,6 +256,7 @@ class SCI_Indices_Calculator:
         quantiles_hi = self.calculate_SCI_share_based_HI_quantiles(health_index_data, sci_dataset, lmic_gid1)
         sci_features = sci_features.merge(quantiles_hi, on='user_loc', how='inner')
         save_path = "external_dataset/sci_indices.csv"
+
         # save sci aggregated dataset
         sci_features.to_csv(save_path)
         logger.info(f" Generated indices on SCI has been saved in {save_path}")
@@ -292,6 +266,8 @@ if __name__ == "__main__":
     config_path = "config_scripts/lmic_shapefiles_config.json"
     with open(config_path) as pth:
         config = json.load(pth)
-    obj = SCI_Indices_Calculator(config["GADM_1"]["sci_dataset_path"], config["GADM_1"]["lmic_shapefile"],
+
+    africa_shapefile_path = "external_dataset/lmic_shapefile.gpkg"
+    obj = SCI_Indices_Calculator(config["GADM_1"]["sci_dataset_path"], africa_shapefile_path,
                                  config['fb_dataset_path'], config["world_health_index_dataset_path"])
     obj.main()
