@@ -4,7 +4,6 @@ import os
 import sys
 import warnings
 from os.path import join
-from pathlib import Path
 from typing import Dict, List
 
 import geopandas as gpd
@@ -39,44 +38,16 @@ class Data_Preprocessing_LMIC:
         :return combined shapefiles:
         """
         all_shapefiles_ls = []
-        logger.info("combining shapefiles for single level")
+        logger.info("combining all shapefiles")
         for single_shapefilepath in shapefilepaths:
             try:
                 all_shapefiles_ls.append(gpd.read_file(single_shapefilepath))
             except Exception as e:
                 logger.info(e)
         combined_shapefile = pd.concat(all_shapefiles_ls)
-        logger.info(" all shapefiles combined for single level")
+        logger.info("all shapefiles combined !")
         return gpd.GeoDataFrame(combined_shapefile, crs=cls.CRS)
 
-    # @staticmethod
-    # def correction_of_GID_for_special_case(row: pd.Series):
-    #     if row['GID_1'][:3] == 'COM':
-    #         return 'COM'
-    #     elif row['GID_1'][:3] == 'CPV':
-    #         return 'CPV'
-    #     else:
-    #         return row['GID_1']
-
-    @staticmethod
-    def correct_HASC_1(row: pd.Series):
-        if (row['HASC_1'] == np.nan) or (row['HASC_1'] is None):
-            return row['HASC_x']
-        else:
-            return row['HASC_1']
-
-    @staticmethod
-    def refactor_GHA_GID_1(row: pd.Series):
-        GID_1 = row['GID_1']
-        if row['COUNTRY'].strip() == "Ghana":
-            GID_1 = GID_1[:5]
-            if '_' in GID_1:
-                GID_1 = GID_1.replace('_','')
-
-            GID_1 = f"{GID_1[:3]}.{GID_1[3:]}_1"
-            return GID_1
-        else:
-            return GID_1
 
     def main(self):
         logger.info(f"combining dataset for Gadm {self.GADM_LEVEL}")
@@ -84,35 +55,63 @@ class Data_Preprocessing_LMIC:
         level_shapefiles = level_config["shapefiles_path"]
         africa_dataset_path = level_config["africa_dataset_path"]
         combined_shapefile = self.combine_shapefiles_single_gadm_level(list(level_shapefiles.values()))
+        combined_shapefile['GID_1'] = combined_shapefile['ISO'].astype(str)+combined_shapefile['ID_1'].astype(str)
+
+        combined_shapefile.drop_duplicates(inplace=True)
+        save_path = "combined_dataset/GADM_1_geometries.gpkg"
+        combined_shapefile.to_file(f"{save_path}", driver="GPKG")
 
         # save combined shapefiles
         africa_dataset = worksheet_reader(africa_dataset_path)
-
         africa_dataset = africa_dataset.drop(
             columns=['GID_0', 'fbkey', 'FB_key', 'NAME_0', 'NAME_1', 'VARNAME_1',
-                     'NL_NAME_1', 'TYPE_1', 'ENGTYPE_1', 'CC_1'])
-
-        combined_shapefile.rename(columns={"HASC_1": "HASC_x"}, inplace=True)
-        combined_shapefile['GID_1'] = combined_shapefile.apply(lambda row: self.refactor_GHA_GID_1(row), axis=1)
+                     'NL_NAME_1', 'TYPE_1', 'ENGTYPE_1', 'CC_1','HASC_1'])
+        
+        africa_dataset['GID_1'] = africa_dataset.GID_1.apply(lambda x:
+                                                                   x.replace('.', '').replace('_1', ''))
         gadm1_dhs_dataset = pd.merge(combined_shapefile, africa_dataset, on="GID_1", how="inner")
 
-        # change GID_1 for Ghana
-        #gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.apply(lambda row: self.refactor_GHA_GID_1(row), axis=1)
-        gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.GID_1.apply(lambda x:
-                                                                   x.replace('.', '').replace('_1', ''))
-        # change GID_1 of Comoros and Cape Verde
-        #gadm1_dhs_dataset['GID_1_1'] = gadm1_dhs_dataset['GID_1']
-        # gadm1_dhs_dataset['GID_1'] = gadm1_dhs_dataset.apply(lambda x: self.correction_of_GID_for_special_case(x),
-        #                                                       axis=1)
         
+        
+        # computing weighted averages for fb data
+        fb_pntr = {"FB_pntr_13p_all":"wpop_2020_age_13plus_all",
+            "FB_pntr_60p_all":"wpop_2020_age_60plus_all",
+            "FB_pntr_15p_all":"wpop_2020_age_15plus_all",
+            "FB_pntr_18p_all":"wpop_2020_age_18plus_all",
+            "FB_pntr_15to24_all":"wpop_2020_age_15_to_24_all",
+            "FB_pntr_25to59_all":"wpop_2020_age_25_to_59_all",
+            "FB_pntr_15to49_all":"wpop_2020_age_15_to_49_all",
+            "FB_pntr_18to49_all":"wpop_2020_age_18_to_49_all",
+            "FB_pntr_18to24_all":"wpop_2020_age_18_to_24_all",
+            "FB_pntr_13p_female":"wpop_2020_age_13plus_female",
+            "FB_pntr_13p_male":"wpop_2020_age_13plus_male",
+            "FB_pntr_15p_female":"wpop_2020_age_15plus_female",
+            "FB_pntr_15p_male":"wpop_2020_age_15plus_male",
+            "FB_pntr_18p_female":"wpop_2020_age_18plus_female",
+            "FB_pntr_18p_male":"wpop_2020_age_18plus_male",
+            "FB_pntr_60p_male":"wpop_2020_age_60plus_male",
+            "FB_pntr_15to24_female":"wpop_2020_age_18plus_female",
+            "FB_pntr_15to24_male":"wpop_2020_age_15_to_24_male",
+            "FB_pntr_25to59_female":"wpop_2020_age_25_to_59_female",
+            "FB_pntr_25to59_male":"wpop_2020_age_25_to_59_male",
+            "FB_pntr_60p_female":"wpop_2020_age_60plus_female", 
+            "FB_pntr_15to49_female":"wpop_2020_age_15_to_49_female",
+            "FB_pntr_15to49_male":"wpop_2020_age_15_to_49_male",
+            "FB_pntr_18to24_female":"wpop_2020_age_18_to_24_female",
+            "FB_pntr_18to24_male":"wpop_2020_age_18_to_24_male",
+            "FB_pntr_18to49_female":"wpop_2020_age_18_to_49_female",
+            "FB_pntr_18to49_male":"wpop_2020_age_18_to_49_male"
+            }
+        
+        for fb,pop in fb_pntr.items():
+            gadm1_dhs_dataset[f"weighted_{fb}"] = gadm1_dhs_dataset.apply(lambda x: x[fb] * x[pop],axis=1)
 
-        # resolving issues with HASC_1 naming
-        gadm1_dhs_dataset['HASC_1'] = gadm1_dhs_dataset.apply(lambda row: self.correct_HASC_1(row), axis=1)
-        gadm1_dhs_dataset.drop(columns=['HASC_x'], inplace=True)
-        gadm1_dhs_dataset = gpd.GeoDataFrame(gadm1_dhs_dataset, crs=self.CRS)
         fb_headers = ['GID_1'] + [i for i in gadm1_dhs_dataset.columns.tolist() if "FB" in i or 'fb' in i]
+        other_headers = [i for i in gadm1_dhs_dataset.columns.tolist() if "FB" not in i and 'fb' not in i]
         fb_data = gadm1_dhs_dataset.loc[:,gadm1_dhs_dataset.columns.isin(fb_headers)]
-        gadm1_dhs_dataset = gadm1_dhs_dataset.loc[:,~gadm1_dhs_dataset.columns.isin([i for i in gadm1_dhs_dataset.columns.tolist() if "FB" in i or 'fb' in i])]
+        gadm1_dhs_dataset = gadm1_dhs_dataset.loc[:,gadm1_dhs_dataset.columns.isin(other_headers)]
+        gadm1_dhs_dataset = gpd.GeoDataFrame(gadm1_dhs_dataset, crs=self.CRS)
+        
         save_path = "external_dataset/lmic_shapefile.gpkg"
         gadm1_dhs_dataset.to_file(f"{save_path}", driver="GPKG")
         logger.info(f"lmic shapefile saved in {save_path}")

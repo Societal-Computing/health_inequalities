@@ -45,20 +45,20 @@ class Dataset_Creator_World_Covariates:
         out_data = self.calculate_single_covariant_index(gadm_1_dataset, config_night_light, source_base_url,
                                                          "Mean_of_Night_Light", "Std_of_Night_Light")
 
-        config_dist_major_rd_intersection = config['distance_to_mjr_rd_intersection_shapefiles']
-        out_data = self.calculate_single_covariant_index(out_data, config_dist_major_rd_intersection, source_base_url,
-                                                         "Mean_distance_to_major_rd_intersection",
-                                                         "Std_distance_to_major_rd_intersection")
+        # config_dist_major_rd_intersection = config['distance_to_mjr_rd_intersection_shapefiles']
+        # out_data = self.calculate_single_covariant_index(out_data, config_dist_major_rd_intersection, source_base_url,
+        #                                                  "Mean_distance_to_major_rd_intersection",
+        #                                                  "Std_distance_to_major_rd_intersection")
 
         config_distance_to_mjr_rd_shapefiles = config['distance_to_mjr_rd_shapefiles']
         out_data = self.calculate_single_covariant_index(out_data, config_distance_to_mjr_rd_shapefiles,
                                                          source_base_url, "Mean_distance_to_major_rd",
                                                          "Std_distance_to_major_rd")
 
-        config_distance_to_inland_water = config['distance_to_inland_water']
-        out_data = self.calculate_single_covariant_index(out_data, config_distance_to_inland_water,
-                                                         source_base_url, "Mean_distance_to_inland_water",
-                                                         "Std_distance_to_inland_water")
+        # config_distance_to_inland_water = config['distance_to_inland_water']
+        # out_data = self.calculate_single_covariant_index(out_data, config_distance_to_inland_water,
+        #                                                  source_base_url, "Mean_distance_to_inland_water",
+        #                                                  "Std_distance_to_inland_water")
 
         config_built_settlement_growth = config['built_settlement_growth']
         out_data = self.calculate_single_covariant_index(out_data, config_built_settlement_growth,
@@ -66,11 +66,8 @@ class Dataset_Creator_World_Covariates:
                                                          "Mean_built_settlement_growth",
                                                          "Std_built_settlement_growth")
 
-        return out_data[["GID_1", "Mean_of_Night_Light", "Std_of_Night_Light", "Mean_distance_to_major_rd_intersection",
-                         "Std_distance_to_major_rd_intersection", "Mean_distance_to_major_rd",
-                         "Std_distance_to_major_rd", "Mean_distance_to_inland_water", "Std_distance_to_inland_water",
-                         "Mean_built_settlement_growth",
-                         "Std_built_settlement_growth"]]
+        return out_data[["GID_1", "Mean_of_Night_Light", "Std_of_Night_Light", "Mean_distance_to_major_rd",
+                         "Std_distance_to_major_rd", "Mean_built_settlement_growth","Std_built_settlement_growth"]]
 
 
 if __name__ == "__main__":
@@ -78,7 +75,8 @@ if __name__ == "__main__":
     with open(config_path) as pth:
         config = json.load(pth)
 
-    all_shape_files = gpd.read_file(config['lmic_shapefile'])[["GID_0", "GID_1", "geometry"]]
+    all_shape_files = gpd.read_file(config['lmic_shapefile'])[["GID_1", "geometry"]]
+    all_shape_files["GID_0"] = all_shape_files["GID_1"].str[:3]
     wpop_source_base_url = config['wpop_source_base_url']
     obj = Dataset_Creator_World_Covariates()
     covariate_data = obj.calculate_all_covariates(all_shape_files, config, wpop_source_base_url)
