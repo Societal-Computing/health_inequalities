@@ -11,6 +11,10 @@
 
 # -----------------------------------------------------------------------------#
 # # Variables created in this file:
+# fp_use_mod          "Current use of modern contraceptive methods"
+# fp_use_no           "Current use of no contraceptive methods"
+# fp_use_intent       "Intention of non-users to use contraceptive methods later"
+
 # fp_message_radio		"Exposure to family planning message by radio"
 # fp_message_tv			  "Exposure to family planning message by TV"
 # fp_message_paper		"Exposure to family planning message by newspaper/magazine"
@@ -26,6 +30,29 @@
 # fp_hf_notdiscuss		"Women non-users who visited a health facility in last 12 months and did not discuss FP"
 # fp_any_notdiscuss		"Women non-users who did not discuss FP neither with FP worker or in a health facility"
 # ------------------------------------------------------------------------------
+
+## USE OF CONTRACEPTIVE METHODS
+
+# Current use of modern contraceptive methods
+IRdata <- IRdata %>%
+  mutate(fp_use_mod = 
+           ifelse(v313 == 3, 1, 0)) %>%
+  set_value_labels(fp_use_mod = c(yes = 1, no = 0)) %>%
+  set_variable_labels(fp_use_mod = "Current use of modern contraceptive methods")
+
+# Current use of no contraceptive methods
+IRdata <- IRdata %>%
+  mutate(fp_use_no = 
+           ifelse(v313 == 0, 1, 0)) %>%
+  set_value_labels(fp_use_no = c(yes = 1, no = 0)) %>%
+  set_variable_labels(fp_use_no = "Current use of no contraceptive methods")
+
+# Intention of non-users to use contraceptive methods later
+IRdata <- IRdata %>%
+  mutate(fp_use_intent = 
+           ifelse(v364 == 3, 1, 0)) %>%
+  set_value_labels(v364 = c(yes = 1, no = 0)) %>%
+  set_variable_labels(v364 = "Intention of non-users to use contraceptive methods later")
 
 
 ## FAMILY PLANNING MESSAGES
@@ -149,10 +176,24 @@ IRdata <- IRdata %>%
 
 ## indicators from MR file
 
+## USE OF CONTRACEPTIVE METHODS
+# Current use of modern contraceptive methods
+MRdata <- MRdata %>%
+  mutate(fp_use_mod = 
+           ifelse(mv313 == 3, 1, 0)) %>%
+  set_value_labels(fp_use_mod = c(yes = 1, no = 0)) %>%
+  set_variable_labels(fp_use_mod = "Current use of modern contraceptive methods")
+
+# Current use of no contraceptive methods
+MRdata <- MRdata %>%
+  mutate(fp_use_no = 
+           ifelse(mv313 == 0, 1, 0)) %>%
+  set_value_labels(fp_use_no = c(yes = 1, no = 0)) %>%
+  set_variable_labels(fp_use_no = "Current use of no contraceptive methods")
+
+
 
 ## FAMILY PLANNING MESSAGES
-
-
 
 # Family planning messages by radio 
 MRdata <- MRdata %>%
@@ -237,14 +278,16 @@ CPdata <- IRdata %>%
          v131,
          v169a,
          v190,
-         fp_message_radio,#		"Exposure to family planning message by radio"
-         fp_message_tv,#			  "Exposure to family planning message by TV"
-         fp_message_paper,#		"Exposure to family planning message by newspaper/magazine"
-         fp_message_mobile,#		"Exposure to family planning message by mobile phone"
-         fp_message_noneof4,#	"Not exposed to any of the four media sources"
+         fp_use_mod, #         "Current use of modern contraceptive methods"
+         fp_use_no, #           "Current use of no contraceptive methods"
+         # fp_message_radio,#		"Exposure to family planning message by radio"
+         # fp_message_tv,#			  "Exposure to family planning message by TV"
+         # fp_message_paper,#		"Exposure to family planning message by newspaper/magazine"
+         # fp_message_mobile,#		"Exposure to family planning message by mobile phone"
+         # fp_message_noneof4,#	"Not exposed to any of the four media sources"
          fp_message_noneof3,# 	"Not exposed to TV, radio, or paper media sources"
-         fp_decyes_user,#			"Who makes the decision to use family planning among users"
-         fp_decno_nonuser,#		"Who makes decision not to use family planning among non-users"
+         # fp_decyes_user,#			"Who makes the decision to use family planning among users"
+         # fp_decno_nonuser,#		"Who makes decision not to use family planning among non-users"
   )
 
 CPmdata <- MRdata %>% 
@@ -262,10 +305,14 @@ CPmdata <- MRdata %>%
          mv190,
          # fp_decyes_user,#			"Who makes the decision to use family planning among users"
          # fp_decno_nonuser,#		"Who makes decision not to use family planning among non-users"
-         fp_message_radio,#		"Exposure to family planning message by radio"
-         fp_message_tv,#			  "Exposure to family planning message by TV"
-         fp_message_paper,#		"Exposure to family planning message by newspaper/magazine"
-         fp_message_mobile,#		"Exposure to family planning message by mobile phone"
-         fp_message_noneof4,#	"Not exposed to any of the four media sources"
+         fp_use_mod, #         "Current use of modern contraceptive methods"
+         fp_use_no, #           "Current use of no contraceptive methods"
+         # fp_message_radio,#		"Exposure to family planning message by radio"
+         # fp_message_tv,#			  "Exposure to family planning message by TV"
+         # fp_message_paper,#		"Exposure to family planning message by newspaper/magazine"
+         # fp_message_mobile,#		"Exposure to family planning message by mobile phone"
+         # fp_message_noneof4,#	"Not exposed to any of the four media sources"
          fp_message_noneof3,# 	"Not exposed to TV, radio, or paper media sources"
+         # fp_decyes_user,#			"Who makes the decision to use family planning among users"
+         # fp_decno_nonuser,#		"Who makes decision not to use family planning among non-users"
          )
