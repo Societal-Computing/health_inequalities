@@ -790,13 +790,24 @@ impact_est <- fp_use_mod_pred %>%
          hk_test_ever_improve_both = ifelse(hk_test_ever_diff_both > 0, 1, 0))
 
 summary(impact_est$fp_use_mod_improve_sci)
-
 impact_est %>% filter(fp_use_mod_improve_sci == 1) %>% select(fp_use_mod_diff_sci) %>% summary()
 impact_est %>% filter(fp_use_mod_improve_sci == 0) %>% select(fp_use_mod_diff_sci) %>% summary()
+impact_est %>% select(fp_use_mod_diff_sci) %>% summary()
+
+summary(impact_est$hk_test_ever_improve_sci)
+impact_est %>% filter(hk_test_ever_improve_sci == 1) %>% select(hk_test_ever_diff_sci) %>% summary()
+impact_est %>% filter(hk_test_ever_improve_sci == 0) %>% select(hk_test_ever_diff_sci) %>% summary()
+impact_est %>% select(hk_test_ever_diff_sci) %>% summary()
 
 summary(impact_est$fp_use_mod_improve_know)
 impact_est %>% filter(fp_use_mod_improve_know == 1) %>% select(fp_use_mod_diff_know) %>% summary()
 impact_est %>% filter(fp_use_mod_improve_know == 0) %>% select(fp_use_mod_diff_know) %>% summary()
+impact_est %>% select(fp_use_mod_diff_know) %>% summary()
+
+summary(impact_est$hk_test_ever_improve_know)
+impact_est %>% filter(hk_test_ever_improve_know == 1) %>% select(hk_test_ever_diff_know) %>% summary()
+impact_est %>% filter(hk_test_ever_improve_know == 0) %>% select(hk_test_ever_diff_know) %>% summary()
+impact_est %>% select(hk_test_ever_diff_know) %>% summary()
 
 summary(impact_est$fp_use_mod_improve_both)
 impact_est %>% filter(fp_use_mod_improve_both == 1) %>% select(fp_use_mod_diff_both) %>% summary()
