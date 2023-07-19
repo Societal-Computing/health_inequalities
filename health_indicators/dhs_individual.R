@@ -41,8 +41,8 @@ country_ls <- substr(dataset_ls, 1, 2) %>%
 AFRdata <- st_read(dsn = "/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_geometries.gpkg") %>% 
   st_make_valid() %>% 
   st_transform(4326) %>% 
-  left_join(read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_variables.csv") %>% 
-              select(GID_1, HASC_1), by = 'GID_1') %>% 
+  # left_join(read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/combined_dataset/GADM_1_variables.csv") %>% 
+  #             select(GID_1, HASC_1), by = 'GID_1') %>% 
   select(GID_1, HASC_1, geom) %>% 
   mutate(
     HASC_1 = if_else(
@@ -89,7 +89,8 @@ for(i in country_ls){
       
       GEOdata <- AFRdata %>% 
         filter(substr(HASC_1, 1, 2) == i) %>% 
-        select(GID_1, geom)
+        select(GID_1, geom) %>% 
+        rowid_to_column(var = 'nearest_index')
       
       '
       We use st_nearest_feature instead of st_intersection as some cluster 
@@ -100,8 +101,11 @@ for(i in country_ls){
       GEOdata <- st_read(dsn = dataset_ls %>% 
                            str_subset(pattern = paste0(i,"GE")) %>% 
                            paste0(datawd,.)) %>% 
-        mutate(nearest_index = st_nearest_feature(.,GEOdata),
-               GID_1 = paste0(substr(GEOdata$GID_1, 1, 3), nearest_index)) %>% 
+        mutate(nearest_index = st_nearest_feature(.,GEOdata)) %>% 
+        left_join(GEOdata %>% 
+                    as.data.frame() %>% 
+                    select(nearest_index, GID_1),
+                  by = 'nearest_index') %>% 
         select(DHSCLUST, GID_1)
       
       
@@ -389,7 +393,7 @@ for(i in country_ls){
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
         mutate(pid = paste0(substr(v000, 1, 2), caseid)) %>% 
-        select(-caseid, -v000, -v001, -v024, -geometry)
+        select(-caseid, -v000, -v024, -geometry)
       
       # temp <- IRdata %>% 
       #   select(caseid, 
