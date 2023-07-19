@@ -3,6 +3,7 @@ title: "Node analysis of social connectedness and health inequalities"
 output:
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 In this notebook, we run the analysis (modelling + diagnostics) for linking social connectedness to health outcomes.
@@ -50,26 +51,55 @@ fb <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_d
   distinct(GID_1, .keep_all = T)
 
 # DHS data
-dhs <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health.csv')
+dhs_raw <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health_individual.csv') %>% 
+  rename(GID_1 = gid_1)
 
 # Afrobarometer
 afr <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/afrobarometer.csv') %>% 
   distinct(GID_1, .keep_all = T)
 
-# Raw SCI
-sci_raw <- read.csv("/Users/tillkoebe/Documents/Data/SCI/sci_gadm1.tsv", sep = "\t") %>% 
-  filter(user_loc %in% unique(dhs$GID_1),
-         fr_loc %in% unique(dhs$GID_1))
+# Centrality measures
+sci_cen <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/all_centrality_measures.csv') %>% 
+  rename(GID_1 = user_loc)
 ```
 ### Defining targets and controls
 
+First, we aggregate the DHS data to the region-level
+
+```{r}
+dhs <- dhs_raw %>% 
+  select(-hid, -strata, -v003, -v021, -pid) %>% 
+  group_by(GID_1) %>% 
+  summarise(across(where(is.numeric), ~ weighted.mean(.x, wt = wt, na.rm = TRUE))) %>% 
+  ungroup
+
+
+
+for(j in c('v012', 'v025', 'v104', 'v106', 'v243a', 'v270')){
+  dhs <- dhs_raw %>% 
+    drop_na(.data[[j]]) %>% 
+    group_by(.data[[j]], GID_1) %>%
+    summarise(n = sum(wt, na.rm = T)) %>%
+    group_by(GID_1) %>%
+    mutate(freq = n / sum(n, na.rm = T), n = sum(n, na.rm = T)) %>% 
+    ungroup %>% 
+    select(-n) %>% 
+    pivot_wider(names_from = {{j}}, 
+                values_from = freq, 
+                values_fill = list(freq = 0)) %>%
+    right_join(dhs, by = 'GID_1')
+}
+```
+
+
 Let's define our targets and controls:
 ```{r}
-### Define targets
 dhs_targets <- dhs %>% 
-  select(rh_anc_pv:we_num_justifydv) %>% 
-  select(starts_with(c('rh', 'ch', 'nt', 'fp'))) %>% 
-  select(-fp_message_noneof4) %>% 
+  select(starts_with(c('rh', 'fp', 'hk'))) %>% #-hk_knw_linear_index, -hk_knw_any, -hk_knw_comphsv, 
+  # select(rh_anc_pv:we_num_justifydv) %>% 
+  # select(starts_with(c('fp', 'hk'))) %>% 
+  # select(fp_use_mod, hk_cond_notprtnr) %>% #excluded as they either reduce sample size or they are out of the 0-1 range
+  # select(fp_use_mod, fp_use_no) %>% 
   names()
 
 ### Define controls
@@ -80,28 +110,34 @@ dhs_controls <- c(
   'richer',
   'richest',
   'female',
+  'male',
   'secondary_or_higher',
-  'has_mobile_phone_yes',
+  'primary_or_no',
+  'yes',
+  'no',
   'rural',
-  "X.0.15.",
-  "X.15.20.",
-  "X.20.25.",
-  "X.25.30.",
-  "X.30.35.",
-  "X.35.40.",
-  "X.40.45.",
-  "X.45.50.",
-  "X.50.inf." 
+  'urban',
+  "(0,15]",
+  "(15,20]",
+  "(20,25]",
+  "(25,30]",
+  "(30,35]",
+  "(35,40]",
+  "(40,45]",
+  "(45,50]"
+  # "hk_knw_linear_index",
+  # "hk_knw_any",
+  # "hk_knw_comphsv"
 )
 
-sci_controls <- c('Mean_dist_to_SCI', # Average distance of friendships
-                  'Median_dist_to_SCI', # Average distance of friendships
-                  'Std_dist_to_SCI', # Clustering measure of friendships across distances
-                  'Total_dist_to_SCI', # Total distance of friendships
+sci_controls <- c('Mean_dist_to_SCI_km', # Average distance of friendships
+                  'Median_dist_to_SCI_km', # Average distance of friendships
+                  'Std_dist_to_SCI_km', # Clustering measure of friendships across distances
+                  'Total_dist_to_SCI_km', # Total distance of friendships
                   'Ratio_selfloop_to_country', # Share of local friendships within the same country
                   'Ratio_selfloop_to_africa', # Share of local friendships that stay within Africa
                   'Ratio_selfloop_to_all_sci', # Share of local friendships of all friendships
-                  'Average_distance_of_friendships', 
+                  'Average_distance_of_friendships_km', 
                   'Mean_SCI_without_Self', # Average probability of friendships with other regions
                   'Median_SCI_without_Self', # Average probability of friendships with other regions
                   'Std_SCI_without_Self', # Clustering measure for the probability of friendships with other regions
@@ -136,14 +172,23 @@ fb_controls <- c('fb_rwi_mean',
                  'FB_pntr_15to49_female',
                  'FB_pntr_15to49_all')
 
-afr_controls <- c('trpar',
+afr_controls <- c('member_community',
+                  'trpar',
                   'trtax',
                   'trgov',
                   'trlaw',
                   'trgen',
                   'trrel',
                   'trnei',
-                  'tracq')
+                  'tracq',
+                  'railway_contact',
+                  'explorer_contact',
+                  'district_ethnic_frac',
+                  'loc_ln_export_area')
+
+cen_controls <- c('degree',
+                  'betweenness',
+                  'closeness')
 ```
 
 
@@ -175,6 +220,10 @@ dat <- dhs %>%
   left_join(afr %>% 
               select(GID_1,
                      all_of(afr_controls)),
+            by = 'GID_1') %>% 
+  left_join(sci_cen %>% 
+              select(GID_1,
+                     all_of(cen_controls)),
             by = 'GID_1') %>% 
   mutate(iso3 = substr(GID_1, 1, 3))
 ```
@@ -279,7 +328,9 @@ First, we center and scale SCI and WP features
 # Center and scale SCI variables
 dat <- dat %>% 
   mutate(across(all_of(sci_controls), ~ scale(.x, scale = T)),
-         across(all_of(wp_controls), ~ scale(.x, scale = T))
+         across(all_of(wp_controls), ~ scale(.x, scale = T)),
+         across(all_of(cen_controls), ~ scale(.x, scale = T))
+         )
          )
 ```
 
@@ -295,6 +346,7 @@ temp <- dat %>%
          # afr_controls,
          # hdi_controls, 
          all_of(wp_controls),
+         all_of(cen_controls),
          iso3) %>% 
   drop_na
 ```
@@ -303,7 +355,7 @@ Now, we can align the map to the final dataset.
 
 ```{r}
 geodat <- afr_dat %>% 
-  left_join(temp,
+  left_join(dat,
             by = 'GID_1') %>% 
   drop_na(all_of(dhs_targets)) %>%
   st_make_valid()
@@ -313,7 +365,7 @@ geodat <- afr_dat %>%
 
 In a first step, we look at spatial autocorrelation in the health outcomes of interest. Therefore, we create a grid of Moran's I values for different distances for each of our health outcome of interest. We define neighborhood via the distance, not via adjacency. Note, that the distance is currently measured in degrees, not in km. Also, note that we already do that for the arcsine-transformed variables, but there should make too much of a difference in terms of spatial autocorrelation.
 
-```{r}
+```{r warning=FALSE}
 set.ZeroPolicyOption(TRUE)
 
 moran_dep <- data.frame()
@@ -376,11 +428,12 @@ controls <- c('Mean_SCI_without_Self +
                 X.45.50. +
                 X.50.inf. +
                 Mean_of_Night_Light +
+                Mean_built_settlement_growth +
                 Mean_distance_to_major_rd +
                 FB_pntr_15to49_all +
                 female:has_mobile_phone_yes +
-                female:Mean_SCI_with_Self +
-                has_mobile_phone_yes:Mean_SCI_with_Self')
+                female:Mean_SCI_without_Self +
+                has_mobile_phone_yes:Mean_SCI_without_Self')
 ```
 
 #### OLS
@@ -603,7 +656,14 @@ Here, the difference is even more pronounced. In addition, the standard OLS appe
 AIC(fit_fp_message_noneof3, fit_fp_message_noneof3_as, fit_fp_message_noneof3_ri, fit_fp_message_noneof3_as_ri, fit_fp_message_noneof3_sl, fit_fp_message_noneof3_as_sl, fit_fp_message_noneof3_se, fit_fp_message_noneof3_as_se)
 ```
 
-Here, again the RI model seems to perform best, although again not the arcsine-transformed one. We now reiterate Moran's I for the residuals.
+Here, again the RI model seems to perform best, although again not the arcsine-transformed one. Let's compare across outcomes for the random intercept:
+
+```{r}
+AIC(fit_ch_allvac_either_ri, fit_ch_novac_either_ri,  fit_rh_anc_pv_ri, fit_rh_anc_pvskill_ri, fit_fp_know_mod_ri, fit_nt_bf_ever_ri, fit_fp_message_noneof3_ri)
+```
+
+
+We now reiterate Moran's I for the residuals.
 
 ### Spatial autocorrelation of residuals
 
@@ -645,7 +705,7 @@ ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) +
 ```
 The random intercept seems to account for most of the spatial autocorrelation for that variable. But does it hold across variables?
 
-```{r}
+```{r warning=FALSE}
 moran_res <- data.frame()
 
 # loop through a distance vector d ranging from 50 to 2000 m
@@ -672,7 +732,6 @@ for (d in seq(dist_start, dist_stop, dist_step)) {
     bind_rows(moran_res)
 
   }
-  print(paste0(d, ' of ',dist_stop))
 }
 
 ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) + 
@@ -683,7 +742,7 @@ ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) +
 
 As a comparison, we run the same analysis for the OLS.
 
-```{r}
+```{r warning=FALSE}
 moran_res <- data.frame()
 
 # loop through a distance vector d ranging from 50 to 2000 m
@@ -710,7 +769,6 @@ for (d in seq(dist_start, dist_stop, dist_step)) {
     bind_rows(moran_res)
 
   }
-  print(paste0(d, ' of ',dist_stop))
 }
 
 ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) + 
@@ -724,6 +782,6 @@ ggplot(moran_res, aes(x = distance, y = moran_I, col=dep_var)) +
 Since most spatial autocorrelation is captured via the random intercept, we look at corresponding regression tables across health outcomes.
 
 ```{r}
-tab_model(fit_ch_allvac_either_ri, fit_ch_novac_either_ri, fit_rh_anc_pv_ri, fit_rh_anc_pvskill_ri, fit_fp_know_mod_ri, fit_fp_message_noneof3_ri, fit_nt_bf_ever_ri)
+tab_model(fit_ch_allvac_either_ri, fit_ch_allvac_either_as_ri, fit_ch_novac_either_ri, fit_ch_novac_either_as_ri, fit_rh_anc_pv_ri, fit_rh_anc_pv_as_ri, fit_rh_anc_pvskill_ri, fit_rh_anc_pvskill_as_ri, fit_fp_know_mod_ri, fit_fp_know_mod_as_ri, fit_nt_bf_ever_ri, fit_nt_bf_ever_as_ri, fit_fp_message_noneof3_ri,fit_fp_message_noneof3_as_ri)
 ```
 

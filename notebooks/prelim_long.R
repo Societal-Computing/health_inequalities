@@ -38,6 +38,10 @@ sci_raw <- read.csv("/Users/tillkoebe/Documents/Data/SCI/sci_gadm1.tsv", sep = "
   filter(user_loc %in% unique(dhs_raw$GID_1),
          fr_loc %in% unique(dhs_raw$GID_1))
 
+# Centrality measures
+sci_cen <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/all_centrality_measures.csv') %>% 
+  rename(GID_1 = user_loc)
+
 
 # Data preparation --------------------------------------------------------
 
@@ -65,7 +69,7 @@ for(j in c('v012', 'v025', 'v104', 'v106', 'v243a', 'v270')){
 
 ### Define targets
 dhs_targets <- dhs %>% 
-  select(fp_use_mod, hk_cond_notprtnr, hk_test_ever, fp_know_mod, 
+  select(fp_use_mod, hk_test_ever, fp_know_mod, 
          hk_knw_linear_index, hk_knw_any, hk_knw_comphsv) %>% 
   names()
 
@@ -121,15 +125,16 @@ hdi_controls <- c('HDI')
 
 wp_controls <- c(
   'Mean_of_Night_Light',
-  'Std_of_Night_Light',
-  'Mean_distance_to_major_rd_intersection',
-  'Std_distance_to_major_rd_intersection',
+  # 'Std_of_Night_Light',
+  # 'Mean_distance_to_major_rd_intersection',
+  # 'Std_distance_to_major_rd_intersection',
   'Mean_distance_to_major_rd',
-  'Std_distance_to_major_rd',
-  "Mean_distance_to_inland_water",
-  "Std_distance_to_inland_water",
-  "Mean_built_settlement_growth",
-  "Std_built_settlement_growth")
+  # 'Std_distance_to_major_rd',
+  # "Mean_distance_to_inland_water",
+  # "Std_distance_to_inland_water",
+  "Mean_built_settlement_growth"
+  # "Std_built_settlement_growth"
+  )
 
 fb_controls <- c('fb_rwi_mean',
                  'fb_rwi_mean_pop_wght',
@@ -159,15 +164,15 @@ dat <- dhs %>%
               select(GID_1 = user_loc,
                      all_of(sci_controls)),
             by = 'GID_1') %>% 
-  left_join(hdi %>% 
+  left_join(hdi %>%
               select(GID_1,
                      all_of(hdi_controls)),
-            by = 'GID_1') %>% 
-  left_join(wp %>% 
-              drop_na(GID_1) %>% 
+            by = 'GID_1') %>%
+  left_join(wp %>%
+              drop_na(GID_1) %>%
               select(GID_1,
                      all_of(wp_controls)),
-            by = 'GID_1') %>% 
+            by = 'GID_1') %>%
   left_join(fb %>% 
               select(GID_1,
                      all_of(fb_controls)),
@@ -181,7 +186,8 @@ dat <- dhs %>%
 
 ### Center and scale SCI variables
 dat <- dat %>% 
-  mutate(across(all_of(wp_controls), ~ scale(.x, scale = T)),
+  mutate(across(all_of(sci_controls), ~ scale(.x, scale = T)),
+         across(all_of(wp_controls), ~ scale(.x, scale = T)),
          across(all_of(afr_controls), ~ scale(.x, scale = T)))
 
 # Get inter-regional differences ------------------------------------------
@@ -215,6 +221,31 @@ long <- long %>%
   distinct(scaled_sci, abs(fp_use_mod), .keep_all = T) %>% 
   mutate(iso3_user = substr(GID_1, 1, 3),
          iso3_fr = substr(fr_loc, 1, 3))
+
+# Add product of penetration rates
+long <- long %>% 
+  left_join(dat %>% 
+              select(GID_1,
+                     x = FB_pntr_15to49_all),
+            by = 'GID_1') %>% 
+  left_join(dat %>% 
+              select(GID_1,
+                     y = FB_pntr_15to49_all),
+            by = join_by(fr_loc == GID_1)) %>% 
+  mutate(FB_pntr_product = x*y)
+
+# Add use levels
+long <- long %>% 
+  left_join(dat %>% 
+              select(GID_1,
+                     fp_use_mod_gid = fp_use_mod,
+                     fp_know_mod_gid = fp_know_mod),
+            by = 'GID_1') %>% 
+  left_join(dat %>% 
+              select(GID_1,
+                     fp_use_mod_fr = fp_use_mod,
+                     fp_know_mod_fr = fp_know_mod),
+            by = join_by(fr_loc == GID_1))
 
 
 # Add raw SCI as control --------------------------------------------------
@@ -283,46 +314,64 @@ fp_use_mod_interaction_fit <- lmer(paste(i,' ~',j,'+',
 
 tab_model(fp_use_mod_basic_fit, fp_use_mod_additional_fit, fp_use_mod_interaction_fit)
 
-  stargazer(fp_use_mod_basic_fit, fp_use_mod_additional_fit, fp_use_mod_interaction_fit, 
+### Get predictions
+fp_use_mod_pred <- temp %>% 
+  mutate(pred = predict(fp_use_mod_interaction_fit),
+         pred_sci_zero = predict(fp_use_mod_interaction_fit, 
+                                 newdata = temp %>% 
+                                   mutate(scaled_sci = 0)),
+         pred_know_zero = predict(fp_use_mod_interaction_fit, 
+                                  newdata = temp %>% 
+                                    mutate(fp_know_mod = 0)),
+         diff_sci_pred = pred - pred_sci_zero,
+         diff_know_pred = pred - pred_know_zero,
+         improve_sci = ifelse(diff_sci_pred >= 0, 1, 0),
+         improve_know = ifelse(diff_know_pred >= 0, 1, 0))
+
+### Latex output
+
+class(fp_use_mod_interaction_fit) <- "lmerMod"
+
+stargazer(fp_use_mod_basic_fit, fp_use_mod_additional_fit, fp_use_mod_interaction_fit, 
           title="Results")
 
-### Using condom with non-partner <> Knowledge about HIV transmission
-
-i <- 'hk_cond_notprtnr'
-j <- 'hk_knw_linear_index'
-interactions <- c(paste0(j,":",key_control))
-
-temp <- long %>% 
-  select(GID_1,
-         all_of(i),
-         all_of(j),
-         all_of(dhs_controls), 
-         all_of(sci_controls), 
-         all_of(fb_controls), 
-         all_of(wp_controls),
-         iso3_user, iso3_fr) %>% 
-  drop_na
-
-hk_cond_notprtnr_basic_fit <- lm(paste(i,' ~',
-                      key_control,'+',
-                      basic_controls,'+',
-                      j,'+',
-                      interactions), temp)
-hk_cond_notprtnr_additional_fit <- lm(paste(i,' ~',
-                           key_control,'+',
-                           basic_controls,'+',
-                           additional_controls,'+',
-                           j,'+',
-                           interactions), temp)
-hk_cond_notprtnr_interaction_fit <- lmer(paste(i,' ~',
-                            key_control,'+',
-                            basic_controls,'+',
-                            j,'+',
-                            additional_controls,
-                            '+ (1 | iso3_user) + (1 | iso3_fr) +',
-                            interactions), temp)
-
-tab_model(hk_cond_notprtnr_basic_fit, hk_cond_notprtnr_additional_fit, hk_cond_notprtnr_interaction_fit)
+# ### Using condom with non-partner <> Knowledge about HIV transmission
+# 
+# i <- 'hk_cond_notprtnr'
+# j <- 'hk_knw_linear_index'
+# interactions <- c(paste0(j,":",key_control))
+# 
+# temp <- long %>% 
+#   select(GID_1,
+#          all_of(i),
+#          all_of(j),
+#          all_of(dhs_controls), 
+#          all_of(sci_controls), 
+#          all_of(fb_controls), 
+#          all_of(wp_controls),
+#          iso3_user, iso3_fr) %>% 
+#   drop_na
+# 
+# hk_cond_notprtnr_basic_fit <- lm(paste(i,' ~',
+#                       key_control,'+',
+#                       basic_controls,'+',
+#                       j,'+',
+#                       interactions), temp)
+# hk_cond_notprtnr_additional_fit <- lm(paste(i,' ~',
+#                            key_control,'+',
+#                            basic_controls,'+',
+#                            additional_controls,'+',
+#                            j,'+',
+#                            interactions), temp)
+# hk_cond_notprtnr_interaction_fit <- lmer(paste(i,' ~',
+#                             key_control,'+',
+#                             basic_controls,'+',
+#                             j,'+',
+#                             additional_controls,
+#                             '+ (1 | iso3_user) + (1 | iso3_fr) +',
+#                             interactions), temp)
+# 
+# tab_model(hk_cond_notprtnr_basic_fit, hk_cond_notprtnr_additional_fit, hk_cond_notprtnr_interaction_fit)
 
 ### Ever tested on HIV <> Knowledge about HIV transmission
 
@@ -362,6 +411,23 @@ hk_test_ever_interaction_fit <- lmer(paste(i,' ~',
 
 tab_model(hk_test_ever_basic_fit, hk_test_ever_additional_fit, hk_test_ever_interaction_fit)
 
+### Get predictions
+hk_test_ever_pred <- temp %>% 
+  mutate(pred = predict(hk_test_ever_interaction_fit),
+         pred_sci_zero = predict(hk_test_ever_interaction_fit, 
+                                 newdata = temp %>% 
+                                   mutate(scaled_sci = 0)),
+         pred_know_zero = predict(hk_test_ever_interaction_fit, 
+                                  newdata = temp %>% 
+                                    mutate(hk_knw_linear_index = 0)),
+         diff_sci_pred = pred - pred_sci_zero,
+         diff_know_pred = pred - pred_know_zero,
+         improve_sci = ifelse(diff_sci_pred >= 0, 1, 0),
+         improve_know = ifelse(diff_know_pred >= 0, 1, 0))
+
+### Latex output
+class(hk_test_ever_interaction_fit) <- "lmerMod"
+
 stargazer(hk_test_ever_basic_fit, hk_test_ever_additional_fit, hk_test_ever_interaction_fit,
           title="Results")
 
@@ -393,6 +459,8 @@ fp_know_mod_interaction_fit <- lmer(paste(i,' ~',
                             '+ (1 | iso3_user) + (1 | iso3_fr)'), temp)
 
 tab_model(fp_know_mod_basic_fit, fp_know_mod_additional_fit, fp_know_mod_interaction_fit)
+
+class(fp_know_mod_interaction_fit) <- "lmerMod"
 
 stargazer(fp_know_mod_basic_fit, fp_know_mod_additional_fit, fp_know_mod_interaction_fit,
           title="Results")
@@ -426,25 +494,19 @@ hk_knw_linear_index_interaction_fit <- lmer(paste(i,' ~',
 
 tab_model(hk_knw_linear_index_basic_fit, hk_knw_linear_index_additional_fit, hk_knw_linear_index_interaction_fit)
 
+class(hk_knw_linear_index_interaction_fit) <- "lmerMod"
+
 stargazer(hk_knw_linear_index_basic_fit, hk_knw_linear_index_additional_fit, hk_knw_linear_index_interaction_fit,
           title="Results")
 
-# Get final table
-# tab_model(fp_use_mod_interaction_fit, 
-#           hk_cond_notprtnr_interaction_fit, 
-#           hk_test_ever_interaction_fit,
-#           fp_know_mod_interaction_fit, 
-#           hk_knw_linear_index_interaction_fit)
+
+# Get final tables --------------------------------------------------------
 
 tab_model(fp_use_mod_interaction_fit, 
           hk_test_ever_interaction_fit,
           fp_know_mod_interaction_fit, 
           hk_knw_linear_index_interaction_fit)
 
-class(fp_use_mod_interaction_fit) <- "lmerMod"
-class(hk_test_ever_interaction_fit) <- "lmerMod"
-class(fp_know_mod_interaction_fit) <- "lmerMod"
-class(hk_knw_linear_index_interaction_fit) <- "lmerMod"
 
 stargazer(fp_use_mod_interaction_fit, 
           hk_test_ever_interaction_fit, 
@@ -452,6 +514,24 @@ stargazer(fp_use_mod_interaction_fit,
           hk_knw_linear_index_interaction_fit, 
           title="Results")
 
-stargazer(fp_use_mod_interaction_fit, 
-          hk_cond_notprtnr_interaction_fit,
-          title="Results")
+
+# Find areas with high SCI impact -----------------------------------------
+
+fp_use_mod_pred %>% 
+  # filter(FB_pntr_15to49_all >= 0.01) %>% 
+  group_by(GID_1) %>% 
+  slice_max(scaled_sci, n = 5) %>% 
+  summarise(fp_know_mod_diff = mean(abs(fp_know_mod), na.rm = T),
+            scaled_sci = mean(scaled_sci, na.rm = T)) %>% 
+  arrange(desc(fp_know_mod_diff))
+
+fp_use_mod_agg <- fp_use_mod_pred %>%  
+  group_by(GID_1) %>% 
+  summarise(across(c('fp_use_mod', 'fp_know_mod', 
+                     'pred', 'pred_sci_zero', 'pred_know_zero', 
+                     'diff_sci_pred', 'diff_know_pred',
+                     'improve_sci', 'improve_know'), 
+                   ~mean(., na.rm = T))) %>% 
+  ungroup()
+
+# Plot area

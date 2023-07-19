@@ -66,14 +66,14 @@ dhs_controls <- c(
   # 'catholic'
 )
 
-sci_controls <- c('Mean_dist_to_SCI', # Average distance of friendships
-                  'Median_dist_to_SCI', # Average distance of friendships
-                  'Std_dist_to_SCI', # Clustering measure of friendships across distances
-                  'Total_dist_to_SCI', # Total distance of friendships
+sci_controls <- c('Mean_dist_to_SCI_km', # Average distance of friendships
+                  'Median_dist_to_SCI_km', # Average distance of friendships
+                  'Std_dist_to_SCI_km', # Clustering measure of friendships across distances
+                  'Total_dist_to_SCI_km', # Total distance of friendships
                   'Ratio_selfloop_to_country', # Share of local friendships within the same country
                   'Ratio_selfloop_to_africa', # Share of local friendships that stay within Africa
                   'Ratio_selfloop_to_all_sci', # Share of local friendships of all friendships
-                  'Average_distance_of_friendships', 
+                  'Average_distance_of_friendships_km', 
                   'Mean_SCI_without_Self', # Average probability of friendships with other regions
                   'Median_SCI_without_Self', # Average probability of friendships with other regions
                   'Std_SCI_without_Self', # Clustering measure for the probability of friendships with other regions
