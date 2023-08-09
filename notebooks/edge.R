@@ -8,6 +8,7 @@ library(lmtest)     # For clustered se
 library(sjPlot)
 library(sjmisc)
 library(stargazer)
+library(scales)      # for rescale function
 
 # Loading relevant data ---------------------------------------------------
 # Map data
@@ -40,7 +41,7 @@ fb <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_d
 dhs_raw <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health_individual.csv') %>% 
   rename(GID_1 = gid_1) %>% 
   filter(GID_1 != 'NA')
-# %>% 
+# %>%
 #   filter(substr(GID_1, 1, 3) != 'TCD')
 
 # Afrobarometer
@@ -197,6 +198,11 @@ dat <- dhs %>%
               select(GID_1,
                      all_of(afr_controls)),
             by = 'GID_1')
+# %>% 
+#   mutate(fp_know_mod_cat = ntile(fp_know_mod, 4),
+#          hk_knw_linear_index_cat = ntile(hk_knw_linear_index, 4))
+# %>%
+#   filter(hk_knw_linear_index_cat == 4)
 
 # Preprocess --------------------------------------------------------------
 
@@ -209,9 +215,9 @@ dat <- dat %>%
 # Get inter-regional differences ------------------------------------------
 
 long <- sci_raw %>% 
-  rename(GID_1 = user_loc) %>% 
-  mutate(scaled_sci = (scaled_sci/1000000000)) %>%
-filter(GID_1 != fr_loc)
+  rename(GID_1 = user_loc) %>%
+  # filter(GID_1 != fr_loc) %>%  # remove self-connections
+  mutate(scaled_sci = (scaled_sci/1000000000))
 
 for(i in c(dhs_targets, dhs_controls, sci_controls, wp_controls, fb_controls, hdi_controls, afr_controls)){
   long <- long %>% 
@@ -234,7 +240,7 @@ for(i in c(dhs_targets, dhs_controls, sci_controls, wp_controls, fb_controls, hd
 
 ### Reducing it to the unique pairwise connections (e.g. )
 long <- long %>%
-  distinct(scaled_sci, abs(fp_use_mod), .keep_all = T) %>% 
+  # distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), .keep_all = T) %>%
   mutate(iso3_user = substr(GID_1, 1, 3),
          iso3_fr = substr(fr_loc, 1, 3))
 
@@ -253,24 +259,35 @@ long <- long %>%
 # Add use levels
 long <- long %>% 
   left_join(dat %>% 
+              mutate(poor = poorest + poorer) %>% 
               select(GID_1,
                      fp_use_mod_gid = fp_use_mod,
                      fp_know_mod_gid = fp_know_mod,
                      hk_test_ever_gid = hk_test_ever,
-                     hk_test_ever_gid = hk_test_ever),
+                     hk_knw_linear_index_gid = hk_knw_linear_index,
+                     urban_gid = urban,
+                     secondary_or_higher_gid = secondary_or_higher,
+                     poor_gid = poor
+                     ),
             by = 'GID_1') %>% 
   left_join(dat %>% 
               select(GID_1,
                      fp_use_mod_fr = fp_use_mod,
                      fp_know_mod_fr = fp_know_mod,
                      hk_test_ever_fr = hk_test_ever,
-                     hk_test_ever_fr = hk_test_ever),
+                     hk_knw_linear_index_fr = hk_knw_linear_index),
             by = join_by(fr_loc == GID_1))
 
-
-# Add raw SCI as control --------------------------------------------------
-
-sci_controls <- c('scaled_sci') 
+long <- long %>%
+  mutate(fp_know_mod_cat = ntile(fp_know_mod_gid, 2) %>% as.character(),
+         hk_knw_linear_index_cat = ntile(hk_knw_linear_index_gid, 2) %>% as.character(),
+         urban_cat = ntile(urban_gid, 2) %>% as.character(),
+         secondary_or_higher_cat = ntile(secondary_or_higher_gid, 2) %>% as.character(),
+         poor_cat = ntile(poor_gid, 2) %>% as.character(),
+         fb_pntr_cat = ntile(FB_pntr_product, 2) %>% as.character()
+  )
+# %>%
+#   filter(fp_know_mod_cat == 4)
 
 # Linear regression -------------------------------------------------------
 
@@ -307,16 +324,25 @@ j <- 'fp_know_mod'
 interactions <- c(paste0(j,":",key_control))
 
 temp <- long %>% 
+  filter(iso3_user == 'BDI') %>% 
+  filter(fp_use_mod >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
          fp_use_mod_gid,
          fp_use_mod_fr,
          fp_know_mod_gid,
          fp_know_mod_fr,
+         # fp_know_mod_cat,
+         # hk_knw_linear_index_cat,
+         # urban_cat,
+         # secondary_or_higher_cat,
+         # poor_cat,
+         # fb_pntr_cat,
          all_of(i),
          all_of(j),
          all_of(dhs_controls), 
-         all_of(sci_controls), 
+         all_of(key_control), 
          all_of(fb_controls), 
          all_of(wp_controls),
          iso3_user, iso3_fr) %>% 
@@ -344,21 +370,45 @@ fp_use_mod_interaction_fit_fe <- lm(paste(i,' ~',j,'+',
                                          '+ iso3_user + iso3_fr +',
                                          interactions), temp)
 
+# fp_use_mod_interaction_fit_rs <- lmer(paste(i,' ~ ',basic_controls,'+',
+#                                             additional_controls,
+#                                             '+ (1 | iso3_user)+ (1 | iso3_fr) + 
+#                                             (scaled_sci|fp_know_mod_cat)'), temp)
+
+# test <- data.frame()
+# for (r in c('urban_cat',
+#             'secondary_or_higher_cat',
+#             'poor_cat',
+#             'fb_pntr_cat')){
+#   fp_use_mod_interaction_fit_rs <- lmer(paste(i,' ~',j,'+',
+#                                               # key_control,'+',
+#                                               basic_controls,'+',
+#                                               additional_controls,
+#                                               paste0('+ (1 | iso3_user)+ (1 | iso3_fr) + 
+#                                             (scaled_sci|',r,') + (fp_know_mod:scaled_sci|',r,')')), temp)
+#                                         
+#   test <- test %>% 
+#     bind_rows(coef(fp_use_mod_interaction_fit_rs)[r] %>% 
+#     as.data.frame() %>% 
+#     select(main = 1, interaction = 2) %>% 
+#     mutate(ranef = r))                
+# }
+
+
+# tab_model(fp_use_mod_interaction_fit, fp_use_mod_interaction_fit_rs, fp_use_mod_interaction_fit_fe)
 tab_model(fp_use_mod_basic_fit, fp_use_mod_additional_fit, fp_use_mod_interaction_fit)
 
 ### Get predictions
+fp_use_mod_interaction_fit_fe_base_zero <- fp_use_mod_interaction_fit_fe
+fp_use_mod_interaction_fit_fe_base_zero$coefficients['scaled_sci'] <- 0
+fp_use_mod_interaction_fit_fe_base_zero$coefficients['fp_know_mod:scaled_sci'] <- 0
+
 fp_use_mod_pred <- temp %>% 
-  mutate(pred = predict(fp_use_mod_interaction_fit),
-         pred_sci_zero = predict(fp_use_mod_interaction_fit, 
-                                 newdata = temp %>% 
-                                   mutate(scaled_sci = 0)),
-         pred_know_zero = predict(fp_use_mod_interaction_fit, 
-                                  newdata = temp %>% 
-                                    mutate(fp_know_mod = 0)),
-         pred_both_zero = predict(fp_use_mod_interaction_fit, 
-                                  newdata = temp %>% 
-                                    mutate(scaled_sci = 0,
-                                           fp_know_mod = 0)))
+  mutate(fp_main = scaled_sci*fp_use_mod_interaction_fit_fe$coefficients['scaled_sci']*100,
+         fp_know = fp_know_mod*fp_use_mod_interaction_fit_fe$coefficients['fp_know_mod']*100,
+         fp_inter = scaled_sci*fp_know_mod*fp_use_mod_interaction_fit_fe$coefficients['fp_know_mod:scaled_sci']*100,
+         fp_pred = predict(fp_use_mod_interaction_fit_fe, newdata = temp),
+         fp_base = predict(fp_use_mod_interaction_fit_fe_base_zero, newdata = temp))
 
 #Clustered Standard Errors
 fp_use_mod_basic_fit_cse <- coeftest(fp_use_mod_basic_fit, vcov = vcovCL, cluster = ~GID_1)
@@ -422,6 +472,8 @@ j <- 'hk_knw_linear_index'
 interactions <- c(paste0(j,":",key_control))
 
 temp <- long %>% 
+  filter(hk_test_ever >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
          hk_test_ever_gid,
@@ -431,7 +483,7 @@ temp <- long %>%
          all_of(i),
          all_of(j),
          all_of(dhs_controls), 
-         all_of(sci_controls), 
+         all_of(key_control), 
          all_of(fb_controls), 
          all_of(wp_controls),
          iso3_user, iso3_fr) %>% 
@@ -467,17 +519,9 @@ tab_model(hk_test_ever_basic_fit, hk_test_ever_additional_fit, hk_test_ever_inte
 
 ### Get predictions
 hk_test_ever_pred <- temp %>% 
-  mutate(pred = predict(hk_test_ever_interaction_fit),
-         pred_sci_zero = predict(hk_test_ever_interaction_fit, 
-                                 newdata = temp %>% 
-                                   mutate(scaled_sci = 0)),
-         pred_know_zero = predict(hk_test_ever_interaction_fit, 
-                                  newdata = temp %>% 
-                                    mutate(hk_knw_linear_index = 0)),
-         pred_both_zero = predict(hk_test_ever_interaction_fit, 
-                                  newdata = temp %>% 
-                                    mutate(scaled_sci = 0,
-                                           hk_knw_linear_index = 0)))
+  mutate(hk_main = scaled_sci*hk_test_ever_interaction_fit_fe$coefficients['scaled_sci']*100,
+         hk_know = hk_knw_linear_index*hk_test_ever_interaction_fit_fe$coefficients['hk_knw_linear_index']*100,
+         hk_inter = scaled_sci*hk_knw_linear_index*hk_test_ever_interaction_fit_fe$coefficients['scaled_sci:hk_knw_linear_index']*100)
 
 #Clustered Standard Errors
 hk_test_ever_basic_fit_cse <- coeftest(hk_test_ever_basic_fit, vcov = vcovCL, cluster = ~GID_1)
@@ -498,11 +542,13 @@ stargazer(hk_test_ever_basic_fit_cse, hk_test_ever_additional_fit_cse, hk_test_e
 i <- 'fp_know_mod'
 
 temp <- long %>% 
+  filter(fp_know_mod >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
          all_of(i),
          all_of(dhs_controls), 
-         all_of(sci_controls), 
+         all_of(key_control), 
          all_of(fb_controls), 
          all_of(wp_controls),
          iso3_user, iso3_fr) %>% 
@@ -547,11 +593,13 @@ stargazer(fp_know_mod_basic_fit_cse, fp_know_mod_additional_fit_cse, fp_know_mod
 i <- 'hk_knw_linear_index'
 
 temp <- long %>% 
+  filter(hk_knw_linear_index >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
          all_of(i),
          all_of(dhs_controls), 
-         all_of(sci_controls), 
+         all_of(key_control), 
          all_of(fb_controls), 
          all_of(wp_controls),
          iso3_user, iso3_fr) %>% 
@@ -594,17 +642,10 @@ stargazer(hk_knw_linear_index_basic_fit_cse, hk_knw_linear_index_additional_fit_
 
 # Get final tables --------------------------------------------------------
 
-tab_model(fp_use_mod_interaction_fit, 
-          hk_test_ever_interaction_fit,
-          fp_know_mod_interaction_fit, 
-          hk_knw_linear_index_interaction_fit)
-
-
-# stargazer(fp_use_mod_interaction_fit, 
-#           hk_test_ever_interaction_fit, 
-#           fp_know_mod_interaction_fit, 
-#           hk_knw_linear_index_interaction_fit, 
-#           title="Results")
+tab_model(fp_use_mod_interaction_fit_fe, 
+          hk_test_ever_interaction_fit_fe,
+          fp_know_mod_interaction_fit_fe, 
+          hk_knw_linear_index_interaction_fit_fe)
 
 stargazer(fp_use_mod_interaction_fit_fe, 
           hk_test_ever_interaction_fit_fe, 
@@ -618,49 +659,22 @@ stargazer(fp_use_mod_interaction_fit_fe_cse,
           hk_knw_linear_index_interaction_fit_fe_cse, 
           title="Results")
 
-
-# Find areas with high SCI impact -----------------------------------------
-
-# Identify area with high SCI impact and large knowledge differences
-top_region <- fp_use_mod_pred %>% 
-  # filter(FB_pntr_15to49_all >= 0.01) %>%
+# Get example figure for paper --------------------------------------------
+top_regions <- fp_use_mod_pred %>% 
+  mutate(fp_joint = fp_main + fp_inter) %>% 
+  filter(GID_1 != fr_loc) %>% 
+  # filter(FB_pntr_15to49_all >= 0.1) %>% 
   group_by(GID_1) %>% 
   slice_max(scaled_sci, n = 3) %>% 
-  summarise(fp_know_mod_diff = mean(abs(fp_know_mod), na.rm = T),
-            scaled_sci = mean(scaled_sci, na.rm = T)) %>% 
-  ungroup() %>% 
-  mutate(sci_know_mod_prod = fp_know_mod_diff*scaled_sci) %>% 
-  slice_max(sci_know_mod_prod, n = 1) %>% 
-  select(GID_1) %>% 
-  as.character()
-
-# Estimated health behaviour levels with and without social connectedness
-est_use <- fp_use_mod_pred %>% 
-  mutate(fp_use_mod_gid_estimate = fp_use_mod_fr + pred,
-         fp_use_mod_gid_zero_sci_estimate = fp_use_mod_fr + pred_sci_zero,
-         fp_use_mod_gid_zero_know_estimate = fp_use_mod_fr + pred_know_zero) %>% 
-  group_by(GID_1) %>% 
-  slice_max(scaled_sci, n = 3) %>%
-  summarise(across(c('fp_use_mod_gid_estimate', 
-                     'fp_use_mod_gid_zero_sci_estimate', 
-                     'fp_use_mod_gid_zero_know_estimate'),
-                   ~mean(., na.rm = T))) %>% 
-  ungroup() %>% 
-  mutate(diff_sci = fp_use_mod_gid_estimate - fp_use_mod_gid_zero_sci_estimate,
-         diff_know = fp_use_mod_gid_estimate - fp_use_mod_gid_zero_know_estimate) %>% 
-  arrange(desc(diff_sci))
-
-
-# Get example figure for paper --------------------------------------------
+  summarise(across(fp_joint, mean))
 
 bdi_dat <- fp_use_mod_pred %>% 
-  filter(GID_1 == 'BDI17') %>% 
+  mutate(fp_use_mod_gid_base = fp_use_mod_fr + fp_base,
+         fp_use_mod_gid_pred = fp_use_mod_fr + fp_pred) %>% 
   filter(GID_1 != fr_loc) %>% 
+  filter(GID_1 == 'BDI5') %>%
   slice_max(scaled_sci, n = 3) %>% 
-  mutate(fp_use_mod_gid_estimate = fp_use_mod_fr + pred,
-         fp_use_mod_gid_zero_sci_estimate = fp_use_mod_fr + pred_sci_zero,
-         fp_use_mod_gid_zero_know_estimate = fp_use_mod_fr + pred_know_zero) %>% 
-  select(GID_1, fr_loc, scaled_sci, fp_know_mod, fp_use_mod_fr, fp_use_mod_gid_estimate, fp_use_mod_gid_zero_sci_estimate)
+  select(GID_1, fr_loc, scaled_sci, fp_use_mod_fr, fp_use_mod_gid_base, fp_use_mod_gid_pred)
 
 
 bdi_map <- afr_dat %>% 
@@ -670,9 +684,8 @@ bdi17_map <- afr_dat %>%
   filter(ISO == 'BDI') %>% 
   inner_join(bdi_dat %>% 
               group_by(GID_1) %>% 
-              summarise(across(c('fp_use_mod_gid_estimate',
-                                 'fp_use_mod_gid_zero_sci_estimate'),
-                               ~weighted.mean(., w = scaled_sci, na.rm = T))) %>% 
+              summarise(across(c('fp_use_mod_gid_base',
+                                 'fp_use_mod_gid_pred'), mean)) %>% 
               ungroup(),
             by = 'GID_1')
 
@@ -684,7 +697,7 @@ bdi_ties_map <- afr_dat %>%
 map_sci <- ggplot(bdi_map) +  
   geom_sf(colour = 'white') +
   geom_sf(colour = 'white', data = bdi17_map, 
-          aes(fill = fp_use_mod_gid_estimate)) +
+          aes(fill = fp_use_mod_gid_pred)) +
   # scale_colour_gradient(low = '#be4d25', high = '#51abcb', limits=c(0.05, 0.2)) +
   geom_sf_text(data = bdi17_map,
                aes(label = NAME_1), size = 3, colour = 'white') +
@@ -692,8 +705,8 @@ map_sci <- ggplot(bdi_map) +
           aes(fill = fp_use_mod_fr)) +
   # geom_sf_label(data = bdi_ties_map, 
   #              aes(label = NAME_1), size = 3, colour = 'black') +
-  scale_fill_gradient2(low = '#2596be', mid = "#6c25be", high = '#bea925', 
-                       midpoint = 0.125, limits=c(0.09, 0.16),
+  scale_fill_gradient2(low = '#6c25be', mid = "#bea925", high = '#2596be', 
+                       midpoint = 0.155, limits=c(0.11, 0.2),
                        name = "Use of modern contraception") +
   theme_light() + 
   theme(
@@ -713,13 +726,13 @@ print(map_sci)
 map_nosci <- ggplot(bdi_map) +  
   geom_sf(colour = 'white') +
   geom_sf(colour = 'white', data = bdi17_map, 
-          aes(fill = fp_use_mod_gid_zero_sci_estimate)) +
+          aes(fill = fp_use_mod_gid_base)) +
   geom_sf_text(data = bdi17_map,
                aes(label = NAME_1), size = 3, colour = 'white') +
   geom_sf(colour = 'white', data = bdi_ties_map, 
           aes(fill = fp_use_mod_fr)) +
-  scale_fill_gradient2(low = '#2596be', mid = "#6c25be", high = '#bea925', 
-                       midpoint = 0.125, limits=c(0.09, 0.16),
+  scale_fill_gradient2(low = '#6c25be', mid = "#bea925", high = '#2596be', 
+                       midpoint = 0.155, limits=c(0.11, 0.2),
                        name = "Use of modern contraception") +
   theme_light() + 
   theme(
@@ -750,86 +763,171 @@ ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/map_nosci.p
 #51abcb #be4d25
 
 
-# Impact of social connectedness on estimated health behaviour ------
-impact_est <- fp_use_mod_pred %>% 
-  mutate(fp_use_mod_gid_estimate = fp_use_mod_fr + pred,
-         fp_use_mod_gid_zero_sci_estimate = fp_use_mod_fr + pred_sci_zero,
-         fp_use_mod_gid_zero_know_estimate = fp_use_mod_fr + pred_know_zero,
-         fp_use_mod_gid_zero_both_estimate = fp_use_mod_fr + pred_both_zero) %>% 
-  group_by(GID_1) %>% 
-  summarise(across(c('fp_use_mod_gid_estimate', 
-                     'fp_use_mod_gid_zero_sci_estimate', 
-                     'fp_use_mod_gid_zero_know_estimate', 
-                     'fp_use_mod_gid_zero_both_estimate'),
-                   ~weighted.mean(., w = scaled_sci, na.rm = T))) %>% 
-  ungroup() %>% 
-  left_join(hk_test_ever_pred %>% 
-              mutate(hk_test_ever_gid_estimate = hk_test_ever_fr + pred,
-                     hk_test_ever_gid_zero_sci_estimate = hk_test_ever_fr + pred_sci_zero,
-                     hk_test_ever_gid_zero_know_estimate = hk_test_ever_fr + pred_know_zero,
-                     hk_test_ever_gid_zero_both_estimate = hk_test_ever_fr + pred_both_zero) %>% 
-              group_by(GID_1) %>% 
-              summarise(across(c('hk_test_ever_gid_estimate', 
-                                 'hk_test_ever_gid_zero_sci_estimate', 
-                                 'hk_test_ever_gid_zero_know_estimate', 
-                                 'hk_test_ever_gid_zero_both_estimate'),
-                               ~weighted.mean(., w = scaled_sci, na.rm = T))) %>% 
+# # Impact of social connectedness on estimated health behaviour ------
+# impact_est <- fp_use_mod_pred %>% 
+#   mutate(fp_use_mod_gid_estimate = fp_use_mod_fr + pred,
+#          fp_use_mod_gid_zero_base_estimate = fp_use_mod_fr + pred_base_zero,
+#          fp_use_mod_gid_zero_sci_estimate = fp_use_mod_fr + pred_sci_zero,
+#          fp_use_mod_gid_zero_know_estimate = fp_use_mod_fr + pred_know_zero,
+#          fp_use_mod_gid_zero_both_estimate = fp_use_mod_fr + pred_both_zero) %>% 
+#   group_by(GID_1) %>% 
+#   # slice_max(scaled_sci, n = 3) %>%
+#   summarise(across(c('fp_use_mod_gid_estimate', 
+#                      'fp_use_mod_gid_zero_base_estimate', 
+#                      'fp_use_mod_gid_zero_sci_estimate', 
+#                      'fp_use_mod_gid_zero_know_estimate', 
+#                      'fp_use_mod_gid_zero_both_estimate'),
+#                    ~weighted.mean(., w = scaled_sci, na.rm = T))) %>% 
+#   ungroup() %>% 
+#   left_join(hk_test_ever_pred %>% 
+#               mutate(hk_test_ever_gid_estimate = hk_test_ever_fr + pred,
+#                      hk_test_ever_gid_zero_sci_estimate = hk_test_ever_fr + pred_sci_zero,
+#                      hk_test_ever_gid_zero_know_estimate = hk_test_ever_fr + pred_know_zero,
+#                      hk_test_ever_gid_zero_both_estimate = hk_test_ever_fr + pred_both_zero) %>% 
+#               group_by(GID_1) %>% 
+#               # slice_max(scaled_sci, n = 3) %>%
+#               summarise(across(c('hk_test_ever_gid_estimate', 
+#                                  'hk_test_ever_gid_zero_sci_estimate', 
+#                                  'hk_test_ever_gid_zero_know_estimate', 
+#                                  'hk_test_ever_gid_zero_both_estimate'),
+#                                ~weighted.mean(., w = scaled_sci, na.rm = T))) %>% 
+#               ungroup(),
+#             by = 'GID_1') %>% 
+#   mutate(fp_use_mod_diff_sci = (fp_use_mod_gid_zero_sci_estimate - fp_use_mod_gid_zero_base_estimate)*100,
+#          fp_use_mod_diff_know = (fp_use_mod_gid_zero_know_estimate - fp_use_mod_gid_zero_base_estimate)*100,
+#          fp_use_mod_diff_both = (fp_use_mod_gid_zero_both_estimate - fp_use_mod_gid_zero_base_estimate)*100,
+#          fp_use_mod_improve_sci = ifelse(fp_use_mod_diff_sci > 0, 1, 0),
+#          fp_use_mod_improve_know = ifelse(fp_use_mod_diff_know > 0, 1, 0),
+#          fp_use_mod_improve_both = ifelse(fp_use_mod_diff_both > 0, 1, 0),
+#          hk_test_ever_diff_sci = (hk_test_ever_gid_estimate - hk_test_ever_gid_zero_sci_estimate)*100,
+#          hk_test_ever_diff_know = (hk_test_ever_gid_estimate - hk_test_ever_gid_zero_know_estimate)*100,
+#          hk_test_ever_diff_both = (hk_test_ever_gid_estimate - hk_test_ever_gid_zero_both_estimate)*100,
+#          hk_test_ever_improve_sci = ifelse(hk_test_ever_diff_sci > 0, 1, 0),
+#          hk_test_ever_improve_know = ifelse(hk_test_ever_diff_know > 0, 1, 0),
+#          hk_test_ever_improve_both = ifelse(hk_test_ever_diff_both > 0, 1, 0)) %>% 
+#   left_join(dat %>%
+#               select(GID_1, fp_know_mod_gid = fp_know_mod,
+#                      hk_knw_linear_index_gid = hk_knw_linear_index),
+#             by = 'GID_1') %>% 
+#   mutate(fp_know_mod_gid_cat = ntile(fp_know_mod_gid, 2),
+#          hk_knw_linear_index_gid_cat = ntile(hk_knw_linear_index_gid, 2))
+# 
+# impact_est %>% filter(fp_know_mod_gid_cat == 1) %>% select(fp_use_mod_diff_sci) %>% summary()
+# impact_est %>% filter(fp_know_mod_gid_cat == 2) %>% select(fp_use_mod_diff_sci) %>% summary()
+# impact_est %>% filter(hk_knw_linear_index_gid_cat == 1) %>% select(hk_test_ever_diff_sci) %>% summary()
+# impact_est %>% filter(hk_knw_linear_index_gid_cat == 2) %>% select(hk_test_ever_diff_sci) %>% summary()
+# 
+# summary(impact_est$fp_use_mod_improve_sci)
+# impact_est %>% filter(fp_use_mod_improve_sci == 1) %>% select(fp_use_mod_diff_sci) %>% summary()
+# impact_est %>% filter(fp_use_mod_improve_sci == 0) %>% select(fp_use_mod_diff_sci) %>% summary()
+# impact_est %>% select(fp_use_mod_diff_sci) %>% summary()
+# 
+# summary(impact_est$hk_test_ever_improve_sci)
+# impact_est %>% filter(hk_test_ever_improve_sci == 1) %>% select(hk_test_ever_diff_sci) %>% summary()
+# impact_est %>% filter(hk_test_ever_improve_sci == 0) %>% select(hk_test_ever_diff_sci) %>% summary()
+# impact_est %>% select(hk_test_ever_diff_sci) %>% summary()
+# 
+# summary(impact_est$fp_use_mod_improve_know)
+# impact_est %>% filter(fp_use_mod_improve_know == 1) %>% select(fp_use_mod_diff_know) %>% summary()
+# impact_est %>% filter(fp_use_mod_improve_know == 0) %>% select(fp_use_mod_diff_know) %>% summary()
+# impact_est %>% select(fp_use_mod_diff_know) %>% summary()
+# 
+# summary(impact_est$hk_test_ever_improve_know)
+# impact_est %>% filter(hk_test_ever_improve_know == 1) %>% select(hk_test_ever_diff_know) %>% summary()
+# impact_est %>% filter(hk_test_ever_improve_know == 0) %>% select(hk_test_ever_diff_know) %>% summary()
+# impact_est %>% select(hk_test_ever_diff_know) %>% summary()
+# 
+# summary(impact_est$fp_use_mod_improve_both)
+# impact_est %>% filter(fp_use_mod_improve_both == 1) %>% select(fp_use_mod_diff_both) %>% summary()
+# impact_est %>% filter(fp_use_mod_improve_both == 0) %>% select(fp_use_mod_diff_both) %>% summary()
+# impact_est %>% select(fp_use_mod_diff_both) %>% summary()
+# 
+# summary(impact_est$hk_test_ever_improve_both)
+# impact_est %>% filter(hk_test_ever_improve_both == 1) %>% select(hk_test_ever_diff_both) %>% summary()
+# impact_est %>% filter(hk_test_ever_improve_both == 0) %>% select(hk_test_ever_diff_both) %>% summary()
+# impact_est %>% select(hk_test_ever_diff_both) %>% summary()
+
+impact_est <- fp_use_mod_pred %>%
+  group_by(GID_1) %>%
+  # slice_max(scaled_sci, n = 3) %>%
+  summarise(across(c('fp_main', 'fp_know', 'fp_inter'), mean)) %>%
+  ungroup() %>%
+  left_join(hk_test_ever_pred %>%
+              group_by(GID_1) %>%
+              # slice_max(scaled_sci, n = 3) %>%
+              summarise(across(c('hk_main', 'hk_know', 'hk_inter'), mean)) %>%
               ungroup(),
             by = 'GID_1') %>% 
-  mutate(fp_use_mod_diff_sci = (fp_use_mod_gid_estimate - fp_use_mod_gid_zero_sci_estimate)*100,
-         fp_use_mod_diff_know = (fp_use_mod_gid_estimate - fp_use_mod_gid_zero_know_estimate)*100,
-         fp_use_mod_diff_both = (fp_use_mod_gid_estimate - fp_use_mod_gid_zero_both_estimate)*100,
-         fp_use_mod_improve_sci = ifelse(fp_use_mod_diff_sci > 0, 1, 0),
-         fp_use_mod_improve_know = ifelse(fp_use_mod_diff_know > 0, 1, 0),
-         fp_use_mod_improve_both = ifelse(fp_use_mod_diff_both > 0, 1, 0),
-         hk_test_ever_diff_sci = (hk_test_ever_gid_estimate - hk_test_ever_gid_zero_sci_estimate)*100,
-         hk_test_ever_diff_know = (hk_test_ever_gid_estimate - hk_test_ever_gid_zero_know_estimate)*100,
-         hk_test_ever_diff_both = (hk_test_ever_gid_estimate - hk_test_ever_gid_zero_both_estimate)*100,
-         hk_test_ever_improve_sci = ifelse(hk_test_ever_diff_sci > 0, 1, 0),
-         hk_test_ever_improve_know = ifelse(hk_test_ever_diff_know > 0, 1, 0),
-         hk_test_ever_improve_both = ifelse(hk_test_ever_diff_both > 0, 1, 0))
+  mutate(fp_joint = fp_main + fp_inter, 
+         hk_joint = hk_main + hk_inter, 
+         fp_improve_sci = ifelse(fp_main > 0, 1, 0),
+         fp_improve_know = ifelse(fp_know > 0, 1, 0),
+         fp_improve_inter = ifelse(fp_inter > 0, 1, 0),
+         fp_improve_joint = ifelse(fp_joint > 0, 1, 0),
+         hk_improve_sci = ifelse(hk_main > 0, 1, 0),
+         hk_improve_inter = ifelse(hk_inter > 0, 1, 0),
+         hk_improve_know = ifelse(hk_know > 0, 1, 0),
+         hk_improve_joint = ifelse(hk_joint > 0, 1, 0))
 
-summary(impact_est$fp_use_mod_improve_sci)
-impact_est %>% filter(fp_use_mod_improve_sci == 1) %>% select(fp_use_mod_diff_sci) %>% summary()
-impact_est %>% filter(fp_use_mod_improve_sci == 0) %>% select(fp_use_mod_diff_sci) %>% summary()
-impact_est %>% select(fp_use_mod_diff_sci) %>% summary()
 
-summary(impact_est$hk_test_ever_improve_sci)
-impact_est %>% filter(hk_test_ever_improve_sci == 1) %>% select(hk_test_ever_diff_sci) %>% summary()
-impact_est %>% filter(hk_test_ever_improve_sci == 0) %>% select(hk_test_ever_diff_sci) %>% summary()
-impact_est %>% select(hk_test_ever_diff_sci) %>% summary()
+summary(impact_est$fp_improve_sci)
+impact_est %>% filter(fp_improve_sci == 1) %>% select(fp_main) %>% summary()
+impact_est %>% filter(fp_improve_sci == 0) %>% select(fp_main) %>% summary()
+impact_est %>% select(fp_main) %>% summary()
 
-summary(impact_est$fp_use_mod_improve_know)
-impact_est %>% filter(fp_use_mod_improve_know == 1) %>% select(fp_use_mod_diff_know) %>% summary()
-impact_est %>% filter(fp_use_mod_improve_know == 0) %>% select(fp_use_mod_diff_know) %>% summary()
-impact_est %>% select(fp_use_mod_diff_know) %>% summary()
+summary(impact_est$fp_improve_know)
+impact_est %>% filter(fp_improve_know == 1) %>% select(fp_know) %>% summary()
+impact_est %>% filter(fp_improve_know == 0) %>% select(fp_know) %>% summary()
+impact_est %>% select(fp_know) %>% summary()
 
-summary(impact_est$hk_test_ever_improve_know)
-impact_est %>% filter(hk_test_ever_improve_know == 1) %>% select(hk_test_ever_diff_know) %>% summary()
-impact_est %>% filter(hk_test_ever_improve_know == 0) %>% select(hk_test_ever_diff_know) %>% summary()
-impact_est %>% select(hk_test_ever_diff_know) %>% summary()
+summary(impact_est$fp_improve_inter)
+impact_est %>% filter(fp_improve_inter == 1) %>% select(fp_inter) %>% summary()
+impact_est %>% filter(fp_improve_inter == 0) %>% select(fp_inter) %>% summary()
+impact_est %>% select(fp_inter) %>% summary()
 
-summary(impact_est$fp_use_mod_improve_both)
-impact_est %>% filter(fp_use_mod_improve_both == 1) %>% select(fp_use_mod_diff_both) %>% summary()
-impact_est %>% filter(fp_use_mod_improve_both == 0) %>% select(fp_use_mod_diff_both) %>% summary()
+summary(impact_est$fp_improve_joint)
+impact_est %>% filter(fp_improve_joint == 1) %>% select(fp_joint) %>% summary()
+impact_est %>% filter(fp_improve_joint == 0) %>% select(fp_joint) %>% summary()
+impact_est %>% select(fp_joint) %>% summary()
+
+summary(impact_est$hk_improve_sci)
+impact_est %>% filter(hk_improve_sci == 1) %>% select(hk_main) %>% summary()
+impact_est %>% filter(hk_improve_sci == 0) %>% select(hk_main) %>% summary()
+impact_est %>% select(hk_main) %>% summary()
+
+summary(impact_est$hk_improve_know)
+impact_est %>% filter(hk_improve_know == 1) %>% select(hk_know) %>% summary()
+impact_est %>% filter(hk_improve_know == 0) %>% select(hk_know) %>% summary()
+impact_est %>% select(hk_know) %>% summary()
+
+summary(impact_est$hk_improve_inter)
+impact_est %>% filter(hk_improve_inter == 1) %>% select(hk_inter) %>% summary()
+impact_est %>% filter(hk_improve_inter == 0) %>% select(hk_inter) %>% summary()
+impact_est %>% select(hk_inter) %>% summary()
+
+summary(impact_est$hk_improve_joint)
+impact_est %>% filter(hk_improve_joint == 1) %>% select(hk_joint) %>% summary()
+impact_est %>% filter(hk_improve_joint == 0) %>% select(hk_joint) %>% summary()
+impact_est %>% select(hk_joint) %>% summary()
 
 impact_map <- afr_dat %>% 
   left_join(impact_est %>% 
               select(GID_1,
-                     fp_use_mod_diff_sci, fp_use_mod_diff_know, fp_use_mod_diff_both,
-                     hk_test_ever_diff_sci, hk_test_ever_diff_know, hk_test_ever_diff_both),
+                     fp_main, fp_inter, fp_joint,
+                     hk_main, hk_inter, hk_joint),
             by = 'GID_1')
 
 
-# Visualize both connectedness and knowledge differences in use
-### hk_test_ever
-hk_test_ever_diff_both_plot <- ggplot(impact_map) +  
+# Visualize main, interaction and joint effect for fp_use_mod
+
+fp_main_plot <- ggplot(impact_map) +  
   geom_sf(colour = 'white', linewidth = 0.1,
-          aes(fill = hk_test_ever_diff_both)) +
-  scale_fill_gradient2(low = '#6c25be', mid = "#bea925", high = '#2596be', 
-                       midpoint = 0,
-                       limits=c(min(impact_est$hk_test_ever_diff_both, impact_est$fp_use_mod_diff_both),
-                                max(impact_est$hk_test_ever_diff_both, impact_est$fp_use_mod_diff_both)),
+          aes(fill = fp_main)) +
+  scale_fill_gradientn(colours = c("#6c25be", "#be2558", "#bea925", "#25be8b", "#2596be"),
+                       values = rescale(c(-20,  -0.01, 0, 0.01, 0.2)),
+                       limits=c(-20, 0.2),
+                       breaks=c(-20, -10, -0.01, 0, 0.01, 0.2),
+                       labels=c(-20, -10, -0.01, 0, 0.01, 0.2),
                        name = "Differences (in %-points)",
                        na.value="grey70") +
   theme_light() + 
@@ -845,14 +943,14 @@ hk_test_ever_diff_both_plot <- ggplot(impact_map) +
     legend.title.align = 0.5) +
   guides(fill = guide_legend(title.position = "top"))
 
-# fp_use_mod
-fp_use_mod_diff_both_plot <- ggplot(impact_map) +  
+fp_inter_plot <- ggplot(impact_map) +  
   geom_sf(colour = 'white', linewidth = 0.1,
-          aes(fill = fp_use_mod_diff_both)) +
-  scale_fill_gradient2(low = '#6c25be', mid = "#bea925", high = '#2596be', 
-                      midpoint = 0,
-                       limits=c(min(impact_est$hk_test_ever_diff_both, impact_est$fp_use_mod_diff_both),
-                                max(impact_est$hk_test_ever_diff_both, impact_est$fp_use_mod_diff_both)),
+          aes(fill = fp_inter)) +
+  scale_fill_gradientn(colours = c("#6c25be", "#be2558", "#bea925", "#25be8b", "#2596be"),
+                       values = rescale(c(-20,  -0.01, 0, 0.01, 0.2)), #max(impact_est$fp_main, impact_est$fp_inter, impact_est$fp_joint)
+                       limits=c(-20, 0.2),
+                       breaks=c(-20, -10, -0.01, 0, 0.01, 0.2),
+                       labels=c(-20, -10, -0.01, 0, 0.01, 0.2),
                        name = "Differences (in %-points)",
                        na.value="grey70") +
   theme_light() + 
@@ -868,15 +966,14 @@ fp_use_mod_diff_both_plot <- ggplot(impact_map) +
     legend.title.align = 0.5) +
   guides(fill = guide_legend(title.position = "top"))
 
-# Visualize connectedness differences in use
-### hk_test_ever
-hk_test_ever_diff_sci_plot <- ggplot(impact_map) +  
+fp_joint_plot <- ggplot(impact_map) +  
   geom_sf(colour = 'white', linewidth = 0.1,
-          aes(fill = hk_test_ever_diff_sci)) +
-  scale_fill_gradient2(low = '#6c25be', mid = "#bea925", high = '#2596be', 
-                       midpoint = 0,
-                       limits=c(min(impact_est$hk_test_ever_diff_sci, impact_est$fp_use_mod_diff_sci),
-                                max(impact_est$hk_test_ever_diff_sci, impact_est$fp_use_mod_diff_sci)),
+          aes(fill = fp_joint)) +
+  scale_fill_gradientn(colours = c("#6c25be", "#be2558", "#bea925", "#25be8b", "#2596be"),
+                       values = rescale(c(-20,  -0.01, 0, 0.01, 0.2)),
+                       limits=c(-20, 0.2),
+                       breaks=c(-20, -10, -0.01, 0, 0.01, 0.2),
+                       labels=c(-20, -10, -0.01, 0, 0.01, 0.2),
                        name = "Differences (in %-points)",
                        na.value="grey70") +
   theme_light() + 
@@ -892,14 +989,61 @@ hk_test_ever_diff_sci_plot <- ggplot(impact_map) +
     legend.title.align = 0.5) +
   guides(fill = guide_legend(title.position = "top"))
 
-# fp_use_mod
-fp_use_mod_diff_sci_plot <- ggplot(impact_map) +  
+# Visualize main, interaction and joint effect for hk_test_ever
+hk_main_plot <- ggplot(impact_map) +  
   geom_sf(colour = 'white', linewidth = 0.1,
-          aes(fill = fp_use_mod_diff_sci)) +
-  scale_fill_gradient2(low = '#6c25be', mid = "#bea925", high = '#2596be', 
-                       midpoint = 0,
-                       limits=c(min(impact_est$hk_test_ever_diff_sci, impact_est$fp_use_mod_diff_sci),
-                                max(impact_est$hk_test_ever_diff_sci, impact_est$fp_use_mod_diff_sci)),
+          aes(fill = hk_main)) +
+  scale_fill_gradientn(colours = c("#6c25be", "#be2558", "#bea925", "#25be8b", "#2596be"),
+                       values = rescale(c(-0.3, -0.01, 0, 0.01, 0.05)),
+                       limits=c(-0.3, 0.05),
+                       breaks=c(-0.3, -0.1, -0.01, 0, 0.01, 0.05),
+                       labels=c(-0.3, -0.1, -0.01, 0, 0.01, 0.05),
+                       name = "Differences (in %-points)",
+                       na.value="grey70") +
+  theme_light() + 
+  theme(
+    axis.line = element_blank(), 
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    panel.grid.major = element_blank(), # optional - remove gridlines
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    legend.position="bottom",
+    legend.title.align = 0.5) +
+  guides(fill = guide_legend(title.position = "top"))
+
+hk_inter_plot <- ggplot(impact_map) +  
+  geom_sf(colour = 'white', linewidth = 0.1,
+          aes(fill = hk_inter)) +
+  scale_fill_gradientn(colours = c("#6c25be", "#be2558", "#bea925", "#25be8b", "#2596be"),
+                       values = rescale(c(-0.3, -0.01, 0, 0.01, 0.05)),
+                       limits=c(-0.3, 0.05),
+                       breaks=c(-0.3, -0.1, -0.01, 0, 0.01, 0.05),
+                       labels=c(-0.3, -0.1, -0.01, 0, 0.01, 0.05),
+                       name = "Differences (in %-points)",
+                       na.value="grey70") +
+  theme_light() + 
+  theme(
+    axis.line = element_blank(), 
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    panel.grid.major = element_blank(), # optional - remove gridlines
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    legend.position="bottom",
+    legend.title.align = 0.5) +
+  guides(fill = guide_legend(title.position = "top"))
+
+hk_joint_plot <- ggplot(impact_map) +  
+  geom_sf(colour = 'white', linewidth = 0.1,
+          aes(fill = hk_joint)) +
+  scale_fill_gradientn(colours = c("#6c25be", "#be2558", "#bea925", "#25be8b", "#2596be"),
+                       values = rescale(c(-0.3, -0.01, 0, 0.01, 0.05)),
+                       limits=c(-0.3, 0.05),
+                       breaks=c(-0.3, -0.1, -0.01, 0, 0.01, 0.05),
+                       labels=c(-0.3, -0.1, -0.01, 0, 0.01, 0.05),
                        name = "Differences (in %-points)",
                        na.value="grey70") +
   theme_light() + 
@@ -916,30 +1060,43 @@ fp_use_mod_diff_sci_plot <- ggplot(impact_map) +
   guides(fill = guide_legend(title.position = "top"))
 
 # Save plots
-hk_test_ever_diff_both_plot
-ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/hk_test_ever_diff_both.png", 
+hk_main_plot
+ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/hk_main.png", 
        width = 2000, height = 2000, units = 'px', 
        dpi = 300)
 
-hk_test_ever_diff_sci_plot
-ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/hk_test_ever_diff_sci.png", 
+hk_inter_plot
+ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/hk_inter.png", 
        width = 2000, height = 2000, units = 'px', 
        dpi = 300)
 
-fp_use_mod_diff_both_plot
-ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/fp_use_mod_diff_both.png", 
+hk_joint_plot
+ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/hk_joint.png", 
        width = 2000, height = 2000, units = 'px', 
        dpi = 300)
 
-fp_use_mod_diff_sci_plot
-ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/fp_use_mod_diff_sci.png", 
+fp_main_plot
+ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/fp_main.png", 
+       width = 2000, height = 2000, units = 'px', 
+       dpi = 300)
+
+fp_inter_plot
+ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/fp_inter.png", 
+       width = 2000, height = 2000, units = 'px', 
+       dpi = 300)
+
+fp_joint_plot
+ggsave("/Users/tillkoebe/Documents/GitHub/health_inequalities/images/fp_joint.png", 
        width = 2000, height = 2000, units = 'px', 
        dpi = 300)
 
 # Investigate the Simpson's Paradox ---------------------------------------
 
 sci_dat <- long %>% 
+  filter(fp_use_mod >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
+         all_of(key_control), 
          all_of(dhs_controls), 
          all_of(sci_controls), 
          all_of(fb_controls),
@@ -973,9 +1130,9 @@ additional_controls <- c("Mean_of_Night_Light +
                 Mean_built_settlement_growth +
                 FB_pntr_15to49_all")
 
-sci_interaction_fit <- lmer(paste('scaled_sci ~',basic_controls,'+',
+sci_interaction_fit <- lm(paste('scaled_sci ~',basic_controls,'+',
                                   additional_controls,
-                                  '+ (1 | iso3_user)+ (1 | iso3_fr)'), sci_dat)
+                                  '+ iso3_user + iso3_fr'), sci_dat)
 
 tab_model(sci_interaction_fit)
 
