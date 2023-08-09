@@ -8,6 +8,7 @@ library(lmtest)     # For clustered se
 library(sjPlot)
 library(sjmisc)
 library(stargazer)
+library(scales)      # for rescale function
 
 # Loading relevant data ---------------------------------------------------
 # Map data
@@ -41,7 +42,7 @@ dhs_raw <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/exter
   rename(GID_1 = gid_1) %>% 
   filter(GID_1 != 'NA') %>% 
   filter(v104 == 'male')
-# %>% 
+# %>%
 #   filter(substr(GID_1, 1, 3) != 'TCD')
 
 # Afrobarometer
@@ -196,6 +197,11 @@ dat <- dhs %>%
               select(GID_1,
                      all_of(afr_controls)),
             by = 'GID_1')
+# %>% 
+#   mutate(fp_know_mod_cat = ntile(fp_know_mod, 4),
+#          hk_knw_linear_index_cat = ntile(hk_knw_linear_index, 4))
+# %>%
+#   filter(hk_knw_linear_index_cat == 4)
 
 # Preprocess --------------------------------------------------------------
 
@@ -208,9 +214,9 @@ dat <- dat %>%
 # Get inter-regional differences ------------------------------------------
 
 long <- sci_raw %>% 
-  rename(GID_1 = user_loc) %>% 
-  mutate(scaled_sci = (scaled_sci/1000000000)) %>%
-filter(GID_1 != fr_loc)
+  rename(GID_1 = user_loc) %>%
+  # filter(GID_1 != fr_loc) %>%  # remove self-connections
+  mutate(scaled_sci = (scaled_sci/1000000000))
 
 for(i in c(dhs_targets, dhs_controls, sci_controls, wp_controls, fb_controls, hdi_controls, afr_controls)){
   long <- long %>% 
@@ -233,7 +239,7 @@ for(i in c(dhs_targets, dhs_controls, sci_controls, wp_controls, fb_controls, hd
 
 ### Reducing it to the unique pairwise connections (e.g. )
 long <- long %>%
-  distinct(scaled_sci, abs(fp_use_mod), .keep_all = T) %>% 
+  # distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), .keep_all = T) %>%
   mutate(iso3_user = substr(GID_1, 1, 3),
          iso3_fr = substr(fr_loc, 1, 3))
 
@@ -252,24 +258,35 @@ long <- long %>%
 # Add use levels
 long <- long %>% 
   left_join(dat %>% 
+              mutate(poor = poorest + poorer) %>% 
               select(GID_1,
                      fp_use_mod_gid = fp_use_mod,
                      fp_know_mod_gid = fp_know_mod,
                      hk_test_ever_gid = hk_test_ever,
-                     hk_test_ever_gid = hk_test_ever),
+                     hk_knw_linear_index_gid = hk_knw_linear_index,
+                     urban_gid = urban,
+                     secondary_or_higher_gid = secondary_or_higher,
+                     poor_gid = poor
+              ),
             by = 'GID_1') %>% 
   left_join(dat %>% 
               select(GID_1,
                      fp_use_mod_fr = fp_use_mod,
                      fp_know_mod_fr = fp_know_mod,
                      hk_test_ever_fr = hk_test_ever,
-                     hk_test_ever_fr = hk_test_ever),
+                     hk_knw_linear_index_fr = hk_knw_linear_index),
             by = join_by(fr_loc == GID_1))
 
-
-# Add raw SCI as control --------------------------------------------------
-
-sci_controls <- c('scaled_sci') 
+long <- long %>%
+  mutate(fp_know_mod_cat = ntile(fp_know_mod_gid, 2) %>% as.character(),
+         hk_knw_linear_index_cat = ntile(hk_knw_linear_index_gid, 2) %>% as.character(),
+         urban_cat = ntile(urban_gid, 2) %>% as.character(),
+         secondary_or_higher_cat = ntile(secondary_or_higher_gid, 2) %>% as.character(),
+         poor_cat = ntile(poor_gid, 2) %>% as.character(),
+         fb_pntr_cat = ntile(FB_pntr_product, 2) %>% as.character()
+  )
+# %>%
+#   filter(fp_know_mod_cat == 4)
 
 # Linear regression -------------------------------------------------------
 
@@ -305,16 +322,24 @@ j <- 'fp_know_mod'
 interactions <- c(paste0(j,":",key_control))
 
 temp <- long %>% 
+  filter(fp_use_mod >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
          fp_use_mod_gid,
          fp_use_mod_fr,
          fp_know_mod_gid,
          fp_know_mod_fr,
+         # fp_know_mod_cat,
+         # hk_knw_linear_index_cat,
+         # urban_cat,
+         # secondary_or_higher_cat,
+         # poor_cat,
+         # fb_pntr_cat,
          all_of(i),
          all_of(j),
          all_of(dhs_controls), 
-         all_of(sci_controls), 
+         all_of(key_control), 
          all_of(fb_controls), 
          all_of(wp_controls),
          iso3_user, iso3_fr) %>% 
@@ -341,22 +366,45 @@ fp_use_mod_interaction_fit_fe <- lm(paste(i,' ~',j,'+',
                                           additional_controls,
                                           '+ iso3_user + iso3_fr +',
                                           interactions), temp)
+# fp_use_mod_interaction_fit_rs <- lmer(paste(i,' ~ ',basic_controls,'+',
+#                                             additional_controls,
+#                                             '+ (1 | iso3_user)+ (1 | iso3_fr) + 
+#                                             (scaled_sci|fp_know_mod_cat)'), temp)
 
+# test <- data.frame()
+# for (r in c('urban_cat',
+#             'secondary_or_higher_cat',
+#             'poor_cat',
+#             'fb_pntr_cat')){
+#   fp_use_mod_interaction_fit_rs <- lmer(paste(i,' ~',j,'+',
+#                                               # key_control,'+',
+#                                               basic_controls,'+',
+#                                               additional_controls,
+#                                               paste0('+ (1 | iso3_user)+ (1 | iso3_fr) + 
+#                                             (scaled_sci|',r,') + (fp_know_mod:scaled_sci|',r,')')), temp)
+#                                         
+#   test <- test %>% 
+#     bind_rows(coef(fp_use_mod_interaction_fit_rs)[r] %>% 
+#     as.data.frame() %>% 
+#     select(main = 1, interaction = 2) %>% 
+#     mutate(ranef = r))                
+# }
+
+
+# tab_model(fp_use_mod_interaction_fit, fp_use_mod_interaction_fit_rs, fp_use_mod_interaction_fit_fe)
 tab_model(fp_use_mod_basic_fit, fp_use_mod_additional_fit, fp_use_mod_interaction_fit)
 
 ### Get predictions
+fp_use_mod_interaction_fit_fe_base_zero <- fp_use_mod_interaction_fit_fe
+fp_use_mod_interaction_fit_fe_base_zero$coefficients['scaled_sci'] <- 0
+fp_use_mod_interaction_fit_fe_base_zero$coefficients['fp_know_mod:scaled_sci'] <- 0
+
 fp_use_mod_pred <- temp %>% 
-  mutate(pred = predict(fp_use_mod_interaction_fit),
-         pred_sci_zero = predict(fp_use_mod_interaction_fit, 
-                                 newdata = temp %>% 
-                                   mutate(scaled_sci = 0)),
-         pred_know_zero = predict(fp_use_mod_interaction_fit, 
-                                  newdata = temp %>% 
-                                    mutate(fp_know_mod = 0)),
-         pred_both_zero = predict(fp_use_mod_interaction_fit, 
-                                  newdata = temp %>% 
-                                    mutate(scaled_sci = 0,
-                                           fp_know_mod = 0)))
+  mutate(fp_main = scaled_sci*fp_use_mod_interaction_fit_fe$coefficients['scaled_sci']*100,
+         fp_know = fp_know_mod*fp_use_mod_interaction_fit_fe$coefficients['fp_know_mod']*100,
+         fp_inter = scaled_sci*fp_know_mod*fp_use_mod_interaction_fit_fe$coefficients['fp_know_mod:scaled_sci']*100,
+         fp_pred = predict(fp_use_mod_interaction_fit_fe, newdata = temp),
+         fp_base = predict(fp_use_mod_interaction_fit_fe_base_zero, newdata = temp))
 
 #Clustered Standard Errors
 fp_use_mod_basic_fit_cse <- coeftest(fp_use_mod_basic_fit, vcov = vcovCL, cluster = ~GID_1)
@@ -420,6 +468,8 @@ j <- 'hk_knw_linear_index'
 interactions <- c(paste0(j,":",key_control))
 
 temp <- long %>% 
+  filter(hk_test_ever >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
          hk_test_ever_gid,
@@ -429,7 +479,7 @@ temp <- long %>%
          all_of(i),
          all_of(j),
          all_of(dhs_controls), 
-         all_of(sci_controls), 
+         all_of(key_control), 
          all_of(fb_controls), 
          all_of(wp_controls),
          iso3_user, iso3_fr) %>% 
@@ -465,17 +515,9 @@ tab_model(hk_test_ever_basic_fit, hk_test_ever_additional_fit, hk_test_ever_inte
 
 ### Get predictions
 hk_test_ever_pred <- temp %>% 
-  mutate(pred = predict(hk_test_ever_interaction_fit),
-         pred_sci_zero = predict(hk_test_ever_interaction_fit, 
-                                 newdata = temp %>% 
-                                   mutate(scaled_sci = 0)),
-         pred_know_zero = predict(hk_test_ever_interaction_fit, 
-                                  newdata = temp %>% 
-                                    mutate(hk_knw_linear_index = 0)),
-         pred_both_zero = predict(hk_test_ever_interaction_fit, 
-                                  newdata = temp %>% 
-                                    mutate(scaled_sci = 0,
-                                           hk_knw_linear_index = 0)))
+  mutate(hk_main = scaled_sci*hk_test_ever_interaction_fit_fe$coefficients['scaled_sci']*100,
+         hk_know = hk_knw_linear_index*hk_test_ever_interaction_fit_fe$coefficients['hk_knw_linear_index']*100,
+         hk_inter = scaled_sci*hk_knw_linear_index*hk_test_ever_interaction_fit_fe$coefficients['scaled_sci:hk_knw_linear_index']*100)
 
 #Clustered Standard Errors
 hk_test_ever_basic_fit_cse <- coeftest(hk_test_ever_basic_fit, vcov = vcovCL, cluster = ~GID_1)
@@ -496,11 +538,13 @@ stargazer(hk_test_ever_basic_fit_cse, hk_test_ever_additional_fit_cse, hk_test_e
 i <- 'fp_know_mod'
 
 temp <- long %>% 
+  filter(fp_know_mod >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
          all_of(i),
          all_of(dhs_controls), 
-         all_of(sci_controls), 
+         all_of(key_control), 
          all_of(fb_controls), 
          all_of(wp_controls),
          iso3_user, iso3_fr) %>% 
@@ -545,11 +589,13 @@ stargazer(fp_know_mod_basic_fit_cse, fp_know_mod_additional_fit_cse, fp_know_mod
 i <- 'hk_knw_linear_index'
 
 temp <- long %>% 
+  filter(hk_knw_linear_index >= 0) %>%
+  distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
          all_of(i),
          all_of(dhs_controls), 
-         all_of(sci_controls), 
+         all_of(key_control), 
          all_of(fb_controls), 
          all_of(wp_controls),
          iso3_user, iso3_fr) %>% 
@@ -592,17 +638,10 @@ stargazer(hk_knw_linear_index_basic_fit_cse, hk_knw_linear_index_additional_fit_
 
 # Get final tables --------------------------------------------------------
 
-tab_model(fp_use_mod_interaction_fit, 
-          hk_test_ever_interaction_fit,
-          fp_know_mod_interaction_fit, 
-          hk_knw_linear_index_interaction_fit)
-
-
-# stargazer(fp_use_mod_interaction_fit, 
-#           hk_test_ever_interaction_fit, 
-#           fp_know_mod_interaction_fit, 
-#           hk_knw_linear_index_interaction_fit, 
-#           title="Results")
+tab_model(fp_use_mod_interaction_fit_fe, 
+          hk_test_ever_interaction_fit_fe,
+          fp_know_mod_interaction_fit_fe, 
+          hk_knw_linear_index_interaction_fit_fe)
 
 stargazer(fp_use_mod_interaction_fit_fe, 
           hk_test_ever_interaction_fit_fe, 
