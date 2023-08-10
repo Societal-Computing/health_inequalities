@@ -325,7 +325,7 @@ j <- 'fp_know_mod'
 interactions <- c(paste0(j,":",key_control))
 
 temp <- long %>% 
-  filter(fp_use_mod <= 0) %>%
+  filter(fp_use_mod >= 0) %>%
   distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
@@ -472,7 +472,7 @@ j <- 'hk_knw_linear_index'
 interactions <- c(paste0(j,":",key_control))
 
 temp <- long %>% 
-  filter(hk_test_ever <= 0) %>%
+  filter(hk_test_ever >= 0) %>%
   distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
@@ -542,7 +542,7 @@ stargazer(hk_test_ever_basic_fit_cse, hk_test_ever_additional_fit_cse, hk_test_e
 i <- 'fp_know_mod'
 
 temp <- long %>% 
-  filter(fp_know_mod <= 0) %>%
+  filter(fp_know_mod >= 0) %>%
   distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
@@ -593,7 +593,7 @@ stargazer(fp_know_mod_basic_fit_cse, fp_know_mod_additional_fit_cse, fp_know_mod
 i <- 'hk_knw_linear_index'
 
 temp <- long %>% 
-  filter(hk_knw_linear_index <= 0) %>%
+  filter(hk_knw_linear_index >= 0) %>%
   distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          fr_loc,
