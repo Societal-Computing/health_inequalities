@@ -327,7 +327,7 @@ interactions <- c(paste0(j,":",key_control))
 # Low knowledge
 temp <- long %>% 
   filter(fp_use_mod >= 0) %>%
-  filter(fp_know_mod_cat == 1) %>% #urban_cat #fp_know_mod_cat
+  filter(fb_pntr_cat == 1) %>% #urban_cat #fp_know_mod_cat
   distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          all_of(i),
@@ -351,7 +351,7 @@ fp_use_mod_low_cse <- coeftest(fp_use_mod_low, vcov = vcovCL, cluster = ~GID_1)
 # High knowledge
 temp <- long %>% 
   filter(fp_use_mod >= 0) %>%
-  filter(fp_know_mod_cat == 2) %>% #urban_cat #fp_know_mod_cat
+  filter(fb_pntr_cat == 2) %>% #urban_cat #fp_know_mod_cat
   distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          all_of(i),
@@ -381,7 +381,7 @@ interactions <- c(paste0(j,":",key_control))
 # Low
 temp <- long %>% 
   filter(hk_test_ever >= 0) %>%
-  filter(hk_knw_linear_index_cat == 1) %>%  #urban_cat #hk_knw_linear_index_cat
+  filter(fb_pntr_cat == 1) %>%  #urban_cat #hk_knw_linear_index_cat
   distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          all_of(i),
@@ -406,7 +406,7 @@ hk_test_ever_low_cse <- coeftest(hk_test_ever_low, vcov = vcovCL, cluster = ~GID
 # High
 temp <- long %>% 
   filter(hk_test_ever >= 0) %>%
-  filter(hk_knw_linear_index_cat == 2) %>%  #urban_cat #hk_knw_linear_index_cat
+  filter(fb_pntr_cat == 2) %>%  #urban_cat #hk_knw_linear_index_cat
   distinct(scaled_sci, abs(fp_use_mod), abs(hk_test_ever), abs(fp_know_mod), abs(hk_knw_linear_index), .keep_all = T) %>%
   select(GID_1,
          all_of(i),
