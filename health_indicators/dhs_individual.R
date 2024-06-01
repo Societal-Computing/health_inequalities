@@ -359,11 +359,11 @@ for(i in country_ls){
                                   "middle" = 3, 
                                   "richer" = 4,
                                   "richest" = 5)) %>% 
-        mutate(v012 = as.integer(as_factor(v012)),
+        mutate(#v012 = as.integer(as_factor(v012)),
                v012 = replace(v012, v012 == 98, NA),
                v012 = cut(v012, 
                           breaks=c(0, 15, 20, 25, 30, 35, 40, 45, 50, Inf),
-                          include.lowest = FALSE, right = TRUE),
+                          include.lowest = TRUE, right = FALSE),
                across(where(is.labelled), as_factor),
                across(where(is.factor), as.character),
                # across(where(is.numeric), as.integer),
