@@ -40,8 +40,9 @@ fb <- read.csv("/Users/tillkoebe/Documents/GitHub/health_inequalities/external_d
 # DHS data
 dhs_raw <- read.csv('/Users/tillkoebe/Documents/GitHub/health_inequalities/external_dataset/dhs_health_individual.csv') %>% 
   rename(GID_1 = gid_1) %>% 
-  filter(GID_1 != 'NA') %>% 
-  filter(GID_1 != 'TCD1')
+  filter(GID_1 != 'NA')
+# %>% 
+#   filter(GID_1 != 'TCD1')
 # %>%
 #   filter(substr(GID_1, 1, 3) != 'TCD')
 
@@ -106,14 +107,14 @@ dhs_controls <- c(
   'no',
   'rural',
   'urban',
-  "(0,15]",
-  "(15,20]",
-  "(20,25]",
-  "(25,30]",
-  "(30,35]",
-  "(35,40]",
-  "(40,45]",
-  "(45,50]"
+  "[15,20)",
+  "[20,25)",
+  "[25,30)",
+  "[30,35)",
+  "[35,40)",
+  "[40,45)",
+  "[45,50)",
+  "[50,Inf]"
 )
 
 sci_controls <- c('Mean_dist_to_SCI_km', # Average distance of friendships
@@ -302,13 +303,14 @@ basic_controls <- c("poorest +
                 secondary_or_higher + 
                 yes +
                 urban +
-                `(15,20]` +
-                `(20,25]` +
-                `(25,30]` +
-                `(30,35]` +
-                `(35,40]` +
-                `(40,45]` +
-                `(45,50]`")
+                `[15,20)` +
+                `[20,25)` +
+                `[25,30)` +
+                `[30,35)` +
+                `[35,40)` +
+                `[40,45)` +
+                `[45,50)` +
+                `[50,Inf]`")
 
 country_controls <- c("iso3_user + iso3_fr")
 
