@@ -82,6 +82,9 @@ for(i in country_ls){
     MIS <- is_empty(dataset_ls %>% 
                       str_subset(pattern = paste0(i,"BR")))
     
+    HIV <- is_empty(dataset_ls %>% 
+                      str_subset(pattern = paste0(i,"AR")))
+    
     if(MIS == FALSE){
       
       
@@ -167,6 +170,18 @@ for(i in country_ls){
         mutate(wt = v005/1000000,
                hhid = paste(v001, v002, sep='.'))
       
+      ### HIV
+      if(HIV == TRUE){
+        rm(ARdata)
+      } else{
+        ARdata <-  dataset_ls %>%
+          str_subset(pattern = paste0(i,"AR")) %>%
+          paste0(datawd,.) %>%
+          read_dta %>%
+          mutate(wt = hiv05/1000000,
+                 hhid = paste(hivclust, hivnumb, sep='.'))
+      }
+      
       ### Check availability of sparse modules
       no_DV <- is_empty(IRdata$d105a)
       no_FG <- ifelse(is_empty(IRdata$g100) == T, TRUE, is_empty(MRdata$mg100))
@@ -230,6 +245,14 @@ for(i in country_ls){
         FGdata <- data.frame(caseid = unique(IRdata$caseid))
       } else{
         source(paste0(codewd,"/genital_mutilation.R"), local = T)
+      }
+      
+      ### HIV prevalence
+
+      if(HIV){
+        HVdata <- data.frame(caseid = unique(IRdata$caseid))
+      } else{
+        source(paste0(codewd,"/hiv_prevalence.R"), local = T)
       }
       
       
@@ -319,6 +342,12 @@ for(i in country_ls){
         )
       }
       
+      if(!HIV){
+        HVdata <- HVdata %>%
+          select(caseid,
+                 hv_hiv_pos)
+      }
+      
       control_vars <- c('v021', # PSU
                         'v024', # region
                         'v104', # gender
@@ -326,7 +355,7 @@ for(i in country_ls){
                         'vidx', # line number
                         'v243a', # mobile phone ownership
                         'v270') # wealth index in quintiles
-      
+
       temp <- IRdata %>% 
         select(caseid,
                wt,
@@ -389,6 +418,7 @@ for(i in country_ls){
         left_join(HAdata, by = 'caseid') %>% 
         left_join(HBdata, by = 'caseid') %>% 
         left_join(HKdata, by = 'caseid') %>% 
+        left_join(HVdata, by = 'caseid') %>%
         left_join(WEdata, by = 'caseid') %>% 
         left_join(GEOdata, 
                   by = join_by(v001 == DHSCLUST)) %>% 
