@@ -424,49 +424,6 @@ for(i in country_ls){
                   by = join_by(v001 == DHSCLUST)) %>% 
         mutate(pid = paste0(substr(v000, 1, 2), caseid)) %>% 
         select(-caseid, -v000, -v024, -geometry)
-      
-      # temp <- IRdata %>% 
-      #   select(caseid, 
-      #          wt, # survey weight
-      #          v000, # country code
-      #          v001, # cluster id
-      #          v013, # age group
-      #          v025, # urban/rural
-      #          v106, # highest educational level
-      #          v130, # religion
-      #          v169a, # mobile phone ownership
-      #          v190) %>%   # wealth index in quintiles
-      #   mutate(female = 1) %>%
-      #   bind_rows(
-      #     MRdata %>% 
-      #       rename_with(., ~ sub(".", "", .x), .cols = c(mcaseid, mv000:mv190)) %>% 
-      #       select(caseid, 
-      #              wt, # survey weight
-      #              v000, # country code
-      #              v001, # cluster id
-      #              v013, # age group
-      #              v025, # urban/rural
-      #              v106, # highest educational level
-      #              v130, # religion
-      #              v169a, # mobile phone ownership
-      #              v190) %>%   # wealth index in quintiles
-      #       mutate(female = 0)
-      #   ) %>% 
-      #   # left_join(BFdata, by = 'caseid') %>% 
-      #   left_join(CHdata, by = 'caseid') %>% 
-      #   left_join(CKdata, by = 'caseid') %>% 
-      #   left_join(CPdata, by = 'caseid') %>% 
-      #   left_join(DVdata, by = 'caseid') %>% 
-      #   left_join(FGdata, by = 'caseid') %>% 
-      #   left_join(HAdata, by = 'caseid') %>% 
-      #   left_join(HBdata, by = 'caseid') %>% 
-      #   left_join(HKdata, by = 'caseid') %>% 
-      #   left_join(WEdata, by = 'caseid') %>% 
-      #   left_join(GEOdata, 
-      #             by = join_by(v001 == DHSCLUST)) %>% 
-      #   mutate(pid = paste0(substr(v000, 1, 2), caseid)) %>% 
-      #   select(-caseid, -v000, -v001, -geometry)
-
     }
     
   }, error=function(e){cat("ERROR :",conditionMessage(e), "\n")}) 
