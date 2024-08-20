@@ -30,7 +30,7 @@ fqdn==1.5.1
 geographiclib==2.0
 geopandas==0.12.2
 geopy==2.3.0
-idna==3.4
+idna==3.7
 ipykernel==6.23.0
 ipython==8.13.2
 ipython-genutils==0.2.0
